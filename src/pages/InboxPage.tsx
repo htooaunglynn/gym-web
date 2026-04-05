@@ -1,25 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { SendHorizontal, Search } from 'lucide-react'
 import PageHeader from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import useSearch from '@/hooks/useSearch'
 import { conversations } from '@/data/messages'
 
 export default function InboxPage() {
     const [selectedId, setSelectedId] = useState(conversations[0]?.id ?? '')
-    const [query, setQuery] = useState('')
     const [draft, setDraft] = useState('')
 
-    const filtered = useMemo(() => {
-        const lowered = query.toLowerCase()
-        return conversations.filter(
-            (conversation) =>
-                conversation.senderName.toLowerCase().includes(lowered) ||
-                conversation.preview.toLowerCase().includes(lowered)
-        )
-    }, [query])
+    const search = useSearch(conversations, (conversation, normalizedQuery) =>
+        conversation.senderName.toLowerCase().includes(normalizedQuery) ||
+        conversation.preview.toLowerCase().includes(normalizedQuery)
+    )
+
+    const filtered = search.filtered
 
     const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0]
 
@@ -35,8 +33,8 @@ export default function InboxPage() {
                             <Input
                                 placeholder="Search messages"
                                 className="pl-9"
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
+                                value={search.query}
+                                onChange={(e) => search.setQuery(e.target.value)}
                             />
                         </div>
                     </CardContent>

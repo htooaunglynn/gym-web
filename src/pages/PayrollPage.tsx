@@ -14,11 +14,13 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from 'recharts'
+import type { Payment } from '@/types'
 import PageHeader from '@/components/shared/PageHeader'
 import StatCard from '@/components/shared/StatCard'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import DataTable, { type DataTableColumn } from '@/components/shared/DataTable'
+import StatusBadge from '@/components/shared/StatusBadge'
 import { payments, monthlyRevenue } from '@/data/payroll'
 
 export default function PayrollPage() {
@@ -27,6 +29,46 @@ export default function PayrollPage() {
         .reduce((sum, payment) => sum + payment.amount, 0)
     const pending = payments.filter((p) => p.status === 'Pending').length
     const overdue = payments.filter((p) => p.status === 'Overdue').length
+
+    const columns: DataTableColumn<Payment>[] = [
+        {
+            key: 'member',
+            header: 'Member',
+            render: (payment) => (
+                <div className="flex items-center gap-2.5">
+                    <Avatar className="w-8 h-8">
+                        <AvatarImage src={payment.memberAvatar} />
+                        <AvatarFallback>{payment.memberName.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium">{payment.memberName}</span>
+                </div>
+            ),
+        },
+        { key: 'plan', header: 'Plan', render: (payment) => payment.plan },
+        {
+            key: 'amount',
+            header: 'Amount',
+            cellClassName: 'font-medium',
+            render: (payment) => `$${payment.amount}`,
+        },
+        {
+            key: 'method',
+            header: 'Method',
+            cellClassName: 'text-muted-foreground',
+            render: (payment) => payment.method,
+        },
+        {
+            key: 'date',
+            header: 'Date',
+            cellClassName: 'text-muted-foreground',
+            render: (payment) => payment.date,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            render: (payment) => <StatusBadge kind="payment-status" value={payment.status} />,
+        },
+    ]
 
     return (
         <div>
@@ -132,52 +174,11 @@ export default function PayrollPage() {
                     <CardDescription>All recent membership payments</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b text-muted-foreground">
-                                    <th className="text-left py-2 font-medium">Member</th>
-                                    <th className="text-left py-2 font-medium">Plan</th>
-                                    <th className="text-left py-2 font-medium">Amount</th>
-                                    <th className="text-left py-2 font-medium">Method</th>
-                                    <th className="text-left py-2 font-medium">Date</th>
-                                    <th className="text-left py-2 font-medium">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {payments.map((payment) => (
-                                    <tr key={payment.id} className="border-b last:border-0">
-                                        <td className="py-2.5">
-                                            <div className="flex items-center gap-2.5">
-                                                <Avatar className="w-8 h-8">
-                                                    <AvatarImage src={payment.memberAvatar} />
-                                                    <AvatarFallback>{payment.memberName.slice(0, 2)}</AvatarFallback>
-                                                </Avatar>
-                                                <span className="font-medium">{payment.memberName}</span>
-                                            </div>
-                                        </td>
-                                        <td className="py-2.5">{payment.plan}</td>
-                                        <td className="py-2.5 font-medium">${payment.amount}</td>
-                                        <td className="py-2.5 text-muted-foreground">{payment.method}</td>
-                                        <td className="py-2.5 text-muted-foreground">{payment.date}</td>
-                                        <td className="py-2.5">
-                                            <Badge
-                                                variant={
-                                                    payment.status === 'Paid'
-                                                        ? 'success'
-                                                        : payment.status === 'Pending'
-                                                            ? 'warning'
-                                                            : 'danger'
-                                                }
-                                            >
-                                                {payment.status}
-                                            </Badge>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        data={payments}
+                        columns={columns}
+                        getRowKey={(payment) => payment.id}
+                    />
                 </CardContent>
             </Card>
         </div>

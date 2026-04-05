@@ -8,36 +8,50 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from 'recharts'
+import type { Applicant } from '@/types'
 import PageHeader from '@/components/shared/PageHeader'
 import StatCard from '@/components/shared/StatCard'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-
-const applicants = [
-    { id: 'r001', name: 'Olivia Santos', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Olivia', position: 'Fitness Trainer', email: 'olivia.santos@example.com', phone: '+1 555 110 2000', appliedDate: '2026-03-22', experience: '4 years', status: 'Interview' },
-    { id: 'r002', name: 'Noah Ali', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Noah', position: 'Front Desk Executive', email: 'noah.ali@example.com', phone: '+1 555 110 2001', appliedDate: '2026-03-24', experience: '3 years', status: 'Pending' },
-    { id: 'r003', name: 'Maya Chen', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maya', position: 'Nutrition Coach', email: 'maya.chen@example.com', phone: '+1 555 110 2002', appliedDate: '2026-03-25', experience: '5 years', status: 'Accepted' },
-    { id: 'r004', name: 'Aiden Moore', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden', position: 'Strength Coach', email: 'aiden.moore@example.com', phone: '+1 555 110 2003', appliedDate: '2026-03-26', experience: '6 years', status: 'Interview' },
-    { id: 'r005', name: 'Sara Kim', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sara', position: 'Yoga Instructor', email: 'sara.kim@example.com', phone: '+1 555 110 2004', appliedDate: '2026-03-27', experience: '2 years', status: 'Pending' },
-    { id: 'r006', name: 'Leo Martins', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=LeoR', position: 'Operations Assistant', email: 'leo.martins@example.com', phone: '+1 555 110 2005', appliedDate: '2026-03-28', experience: '4 years', status: 'Rejected' },
-    { id: 'r007', name: 'Emma Carter', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=EmmaR', position: 'Group Class Trainer', email: 'emma.carter@example.com', phone: '+1 555 110 2006', appliedDate: '2026-03-29', experience: '3 years', status: 'Interview' },
-    { id: 'r008', name: 'Yusuf Khan', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Yusuf', position: 'Receptionist', email: 'yusuf.khan@example.com', phone: '+1 555 110 2007', appliedDate: '2026-03-30', experience: '2 years', status: 'Pending' },
-]
-
-const applicationByMonth = [
-    { month: 'Jan', count: 12 },
-    { month: 'Feb', count: 17 },
-    { month: 'Mar', count: 24 },
-    { month: 'Apr', count: 21 },
-    { month: 'May', count: 26 },
-    { month: 'Jun', count: 18 },
-]
+import DataTable, { type DataTableColumn } from '@/components/shared/DataTable'
+import StatusBadge from '@/components/shared/StatusBadge'
+import { applicants, applicationsByMonth } from '@/data/recruitment'
 
 export default function RecruitmentPage() {
     const pending = applicants.filter((a) => a.status === 'Pending').length
     const accepted = applicants.filter((a) => a.status === 'Accepted').length
     const rejected = applicants.filter((a) => a.status === 'Rejected').length
+    const columns: DataTableColumn<Applicant>[] = [
+        {
+            key: 'candidate',
+            header: 'Candidate',
+            render: (candidate) => (
+                <div className="flex items-center gap-2.5">
+                    <Avatar className="w-8 h-8">
+                        <AvatarImage src={candidate.avatar} />
+                        <AvatarFallback>{candidate.name.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <p className="font-medium">{candidate.name}</p>
+                        <p className="text-xs text-muted-foreground">{candidate.email}</p>
+                    </div>
+                </div>
+            ),
+        },
+        { key: 'position', header: 'Position', render: (candidate) => candidate.position },
+        { key: 'experience', header: 'Experience', render: (candidate) => candidate.experience },
+        {
+            key: 'appliedDate',
+            header: 'Applied Date',
+            cellClassName: 'text-muted-foreground',
+            render: (candidate) => candidate.appliedDate,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            render: (candidate) => <StatusBadge kind="recruitment-status" value={candidate.status} />,
+        },
+    ]
 
     return (
         <div>
@@ -58,7 +72,7 @@ export default function RecruitmentPage() {
                     </CardHeader>
                     <CardContent className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={applicationByMonth}>
+                            <BarChart data={applicationsByMonth}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="month" />
                                 <YAxis />
@@ -97,55 +111,11 @@ export default function RecruitmentPage() {
                     <CardDescription>Recent candidates and status</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b text-muted-foreground">
-                                    <th className="text-left py-2 font-medium">Candidate</th>
-                                    <th className="text-left py-2 font-medium">Position</th>
-                                    <th className="text-left py-2 font-medium">Experience</th>
-                                    <th className="text-left py-2 font-medium">Applied Date</th>
-                                    <th className="text-left py-2 font-medium">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {applicants.map((candidate) => (
-                                    <tr key={candidate.id} className="border-b last:border-0">
-                                        <td className="py-2.5">
-                                            <div className="flex items-center gap-2.5">
-                                                <Avatar className="w-8 h-8">
-                                                    <AvatarImage src={candidate.avatar} />
-                                                    <AvatarFallback>{candidate.name.slice(0, 2)}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <p className="font-medium">{candidate.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{candidate.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-2.5">{candidate.position}</td>
-                                        <td className="py-2.5">{candidate.experience}</td>
-                                        <td className="py-2.5 text-muted-foreground">{candidate.appliedDate}</td>
-                                        <td className="py-2.5">
-                                            <Badge
-                                                variant={
-                                                    candidate.status === 'Accepted'
-                                                        ? 'success'
-                                                        : candidate.status === 'Rejected'
-                                                            ? 'danger'
-                                                            : candidate.status === 'Interview'
-                                                                ? 'info'
-                                                                : 'warning'
-                                                }
-                                            >
-                                                {candidate.status}
-                                            </Badge>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        data={applicants}
+                        columns={columns}
+                        getRowKey={(candidate) => candidate.id}
+                    />
                 </CardContent>
             </Card>
         </div>

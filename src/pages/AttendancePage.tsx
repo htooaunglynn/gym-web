@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
+import type { AttendanceRecord } from '@/types'
 import {
     AreaChart,
     Area,
@@ -14,23 +15,50 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import DataTable, { type DataTableColumn } from '@/components/shared/DataTable'
+import useSearch from '@/hooks/useSearch'
 import { attendanceRecords, weeklyAttendance } from '@/data/attendance'
 
 export default function AttendancePage() {
-    const [query, setQuery] = useState('')
     const [classFilter, setClassFilter] = useState('all')
 
     const classNames = Array.from(new Set(attendanceRecords.map((r) => r.className))).sort()
 
-    const lowered = query.toLowerCase()
-    const filtered = attendanceRecords.filter((record) => {
-        const byQuery =
-            record.memberName.toLowerCase().includes(lowered) ||
-            record.className.toLowerCase().includes(lowered) ||
-            record.trainer.toLowerCase().includes(lowered)
-        const byClass = classFilter === 'all' || record.className === classFilter
-        return byQuery && byClass
-    })
+    const search = useSearch(attendanceRecords, (record, normalizedQuery) =>
+        record.memberName.toLowerCase().includes(normalizedQuery) ||
+        record.className.toLowerCase().includes(normalizedQuery) ||
+        record.trainer.toLowerCase().includes(normalizedQuery)
+    )
+
+    const filtered = search.filtered.filter((record) =>
+        classFilter === 'all' || record.className === classFilter
+    )
+
+    const columns: DataTableColumn<AttendanceRecord>[] = [
+        {
+            key: 'member',
+            header: 'Member',
+            render: (record) => (
+                <div className="flex items-center gap-2.5">
+                    <Avatar className="w-8 h-8">
+                        <AvatarImage src={record.memberAvatar} />
+                        <AvatarFallback>{record.memberName.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium">{record.memberName}</span>
+                </div>
+            ),
+        },
+        { key: 'className', header: 'Class', render: (record) => record.className },
+        { key: 'trainer', header: 'Trainer', render: (record) => record.trainer },
+        {
+            key: 'date',
+            header: 'Date',
+            cellClassName: 'text-muted-foreground',
+            render: (record) => record.date,
+        },
+        { key: 'checkIn', header: 'Check-in', render: (record) => record.checkIn },
+        { key: 'checkOut', header: 'Check-out', render: (record) => record.checkOut },
+    ]
 
     return (
         <div>
@@ -49,8 +77,8 @@ export default function AttendancePage() {
                                 <Input
                                     placeholder="Search member, class, or trainer"
                                     className="pl-9"
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
+                                    value={search.query}
+                                    onChange={(e) => search.setQuery(e.target.value)}
                                 />
                             </div>
                             <Select value={classFilter} onValueChange={setClassFilter}>
@@ -66,40 +94,14 @@ export default function AttendancePage() {
                             </Select>
                         </div>
 
-                        <div className="overflow-x-auto max-h-[420px]">
-                            <table className="w-full text-sm">
-                                <thead className="sticky top-0 bg-white z-10">
-                                    <tr className="border-b text-muted-foreground">
-                                        <th className="text-left py-2 font-medium">Member</th>
-                                        <th className="text-left py-2 font-medium">Class</th>
-                                        <th className="text-left py-2 font-medium">Trainer</th>
-                                        <th className="text-left py-2 font-medium">Date</th>
-                                        <th className="text-left py-2 font-medium">Check-in</th>
-                                        <th className="text-left py-2 font-medium">Check-out</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filtered.map((record) => (
-                                        <tr key={record.id} className="border-b last:border-0">
-                                            <td className="py-2.5">
-                                                <div className="flex items-center gap-2.5">
-                                                    <Avatar className="w-8 h-8">
-                                                        <AvatarImage src={record.memberAvatar} />
-                                                        <AvatarFallback>{record.memberName.slice(0, 2)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span className="font-medium">{record.memberName}</span>
-                                                </div>
-                                            </td>
-                                            <td className="py-2.5">{record.className}</td>
-                                            <td className="py-2.5">{record.trainer}</td>
-                                            <td className="py-2.5 text-muted-foreground">{record.date}</td>
-                                            <td className="py-2.5">{record.checkIn}</td>
-                                            <td className="py-2.5">{record.checkOut}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            data={filtered}
+                            columns={columns}
+                            getRowKey={(record) => record.id}
+                            containerClassName="max-h-[420px]"
+                            stickyHeader
+                            emptyMessage="No attendance records found."
+                        />
                     </CardContent>
                 </Card>
 

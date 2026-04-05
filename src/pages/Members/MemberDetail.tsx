@@ -1,5 +1,6 @@
 import { Navigate, useParams } from 'react-router'
 import { Mail, Phone, MapPin, Calendar, User } from 'lucide-react'
+import type { Payment } from '@/types'
 import {
     BarChart,
     Bar,
@@ -10,9 +11,10 @@ import {
     ResponsiveContainer,
 } from 'recharts'
 import PageHeader from '@/components/shared/PageHeader'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import DataTable, { type DataTableColumn } from '@/components/shared/DataTable'
+import StatusBadge from '@/components/shared/StatusBadge'
 import { members } from '@/data/members'
 import { payments } from '@/data/payroll'
 
@@ -32,6 +34,38 @@ export default function MemberDetail() {
     if (!member) return <Navigate to="/members" replace />
 
     const memberPayments = payments.filter((p) => p.memberId === member.id)
+    const columns: DataTableColumn<Payment>[] = [
+        {
+            key: 'invoice',
+            header: 'Invoice ID',
+            cellClassName: 'py-3',
+            render: (payment) => `#${payment.id.toUpperCase()}`,
+        },
+        {
+            key: 'plan',
+            header: 'Plan',
+            cellClassName: 'py-3',
+            render: (payment) => payment.plan,
+        },
+        {
+            key: 'amount',
+            header: 'Amount',
+            cellClassName: 'py-3 font-medium',
+            render: (payment) => `$${payment.amount}`,
+        },
+        {
+            key: 'date',
+            header: 'Date',
+            cellClassName: 'py-3 text-muted-foreground',
+            render: (payment) => payment.date,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            cellClassName: 'py-3',
+            render: (payment) => <StatusBadge kind="payment-status" value={payment.status} />,
+        },
+    ]
 
     return (
         <div>
@@ -48,12 +82,8 @@ export default function MemberDetail() {
                             <h2 className="text-lg font-semibold">{member.name}</h2>
                             <p className="text-sm text-muted-foreground">ID: {member.id.toUpperCase()}</p>
                             <div className="flex gap-2 mt-2">
-                                <Badge variant={member.plan === 'Premium' ? 'success' : member.plan === 'Standard' ? 'info' : 'secondary'}>
-                                    {member.plan}
-                                </Badge>
-                                <Badge variant={member.status === 'Active' ? 'success' : member.status === 'Suspended' ? 'warning' : 'secondary'}>
-                                    {member.status}
-                                </Badge>
+                                <StatusBadge kind="member-plan" value={member.plan} />
+                                <StatusBadge kind="member-status" value={member.status} />
                             </div>
                         </div>
 
@@ -107,42 +137,11 @@ export default function MemberDetail() {
                     <CardDescription>Latest billing transactions</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b text-muted-foreground">
-                                    <th className="text-left py-2 font-medium">Invoice ID</th>
-                                    <th className="text-left py-2 font-medium">Plan</th>
-                                    <th className="text-left py-2 font-medium">Amount</th>
-                                    <th className="text-left py-2 font-medium">Date</th>
-                                    <th className="text-left py-2 font-medium">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {memberPayments.map((payment) => (
-                                    <tr key={payment.id} className="border-b last:border-0">
-                                        <td className="py-3">#{payment.id.toUpperCase()}</td>
-                                        <td className="py-3">{payment.plan}</td>
-                                        <td className="py-3 font-medium">${payment.amount}</td>
-                                        <td className="py-3 text-muted-foreground">{payment.date}</td>
-                                        <td className="py-3">
-                                            <Badge
-                                                variant={
-                                                    payment.status === 'Paid'
-                                                        ? 'success'
-                                                        : payment.status === 'Pending'
-                                                            ? 'warning'
-                                                            : 'danger'
-                                                }
-                                            >
-                                                {payment.status}
-                                            </Badge>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        data={memberPayments}
+                        columns={columns}
+                        getRowKey={(payment) => payment.id}
+                    />
                 </CardContent>
             </Card>
         </div>

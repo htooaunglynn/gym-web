@@ -21,11 +21,14 @@ import {
     Tooltip,
     Legend,
 } from 'recharts'
+import type { Member } from '@/types'
 import PageHeader from '@/components/shared/PageHeader'
 import StatCard from '@/components/shared/StatCard'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import DataTable, { type DataTableColumn } from '@/components/shared/DataTable'
+import StatusBadge from '@/components/shared/StatusBadge'
 import { members } from '@/data/members'
 import { monthlyStats, planDistribution } from '@/data/performance'
 import { weeklyAttendance } from '@/data/attendance'
@@ -36,6 +39,51 @@ export default function Dashboard() {
     const activeMembers = members.filter((m) => m.status === 'Active').length
     const todayRevenue = 1840
     const todayClasses = classes.filter((c) => c.date === '2026-04-05')
+    const recentMembers = members.slice(0, 7)
+
+    const recentColumns: DataTableColumn<Member>[] = [
+        {
+            key: 'member',
+            header: 'Member',
+            cellClassName: 'py-3',
+            render: (member) => (
+                <div className="flex items-center gap-2.5">
+                    <Avatar className="w-8 h-8">
+                        <AvatarImage src={member.avatar} />
+                        <AvatarFallback>{member.name.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <p className="font-medium text-foreground">{member.name}</p>
+                        <p className="text-xs text-muted-foreground">{member.email}</p>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: 'plan',
+            header: 'Plan',
+            cellClassName: 'py-3',
+            render: (member) => member.plan,
+        },
+        {
+            key: 'trainer',
+            header: 'Trainer',
+            cellClassName: 'py-3',
+            render: (member) => member.trainer,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            cellClassName: 'py-3',
+            render: (member) => <StatusBadge kind="member-status" value={member.status} />,
+        },
+        {
+            key: 'joinDate',
+            header: 'Join Date',
+            cellClassName: 'py-3 text-muted-foreground',
+            render: (member) => member.joinDate,
+        },
+    ]
 
     return (
         <div>
@@ -188,53 +236,11 @@ export default function Dashboard() {
                         <CardDescription>Latest signups and activity</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b text-muted-foreground">
-                                        <th className="text-left py-2 font-medium">Member</th>
-                                        <th className="text-left py-2 font-medium">Plan</th>
-                                        <th className="text-left py-2 font-medium">Trainer</th>
-                                        <th className="text-left py-2 font-medium">Status</th>
-                                        <th className="text-left py-2 font-medium">Join Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {members.slice(0, 7).map((member) => (
-                                        <tr key={member.id} className="border-b last:border-0">
-                                            <td className="py-3">
-                                                <div className="flex items-center gap-2.5">
-                                                    <Avatar className="w-8 h-8">
-                                                        <AvatarImage src={member.avatar} />
-                                                        <AvatarFallback>{member.name.slice(0, 2)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div>
-                                                        <p className="font-medium text-foreground">{member.name}</p>
-                                                        <p className="text-xs text-muted-foreground">{member.email}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-3">{member.plan}</td>
-                                            <td className="py-3">{member.trainer}</td>
-                                            <td className="py-3">
-                                                <Badge
-                                                    variant={
-                                                        member.status === 'Active'
-                                                            ? 'success'
-                                                            : member.status === 'Suspended'
-                                                                ? 'warning'
-                                                                : 'secondary'
-                                                    }
-                                                >
-                                                    {member.status}
-                                                </Badge>
-                                            </td>
-                                            <td className="py-3 text-muted-foreground">{member.joinDate}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            data={recentMembers}
+                            columns={recentColumns}
+                            getRowKey={(member) => member.id}
+                        />
                     </CardContent>
                 </Card>
 

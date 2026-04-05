@@ -1,30 +1,89 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Search } from 'lucide-react'
+import type { Member } from '@/types'
 import PageHeader from '@/components/shared/PageHeader'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import DataTable, { type DataTableColumn } from '@/components/shared/DataTable'
+import StatusBadge from '@/components/shared/StatusBadge'
+import useSearch from '@/hooks/useSearch'
 import { members } from '@/data/members'
 
 export default function MembersList() {
     const navigate = useNavigate()
-    const [query, setQuery] = useState('')
     const [planFilter, setPlanFilter] = useState<string>('all')
     const [statusFilter, setStatusFilter] = useState<string>('all')
 
-    const lowered = query.toLowerCase()
-    const filteredMembers = members.filter((member) => {
-        const matchesQuery =
-            member.name.toLowerCase().includes(lowered) ||
-            member.email.toLowerCase().includes(lowered) ||
-            member.phone.toLowerCase().includes(lowered)
+    const search = useSearch(members, (member, normalizedQuery) =>
+        member.name.toLowerCase().includes(normalizedQuery) ||
+        member.email.toLowerCase().includes(normalizedQuery) ||
+        member.phone.toLowerCase().includes(normalizedQuery)
+    )
+
+    const filteredMembers = search.filtered.filter((member) => {
         const matchesPlan = planFilter === 'all' || member.plan === planFilter
         const matchesStatus = statusFilter === 'all' || member.status === statusFilter
-        return matchesQuery && matchesPlan && matchesStatus
+        return matchesPlan && matchesStatus
     })
+
+    const columns: DataTableColumn<Member>[] = [
+        {
+            key: 'member',
+            header: 'Member',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4',
+            render: (member) => (
+                <div className="flex items-center gap-3">
+                    <Avatar className="w-9 h-9">
+                        <AvatarImage src={member.avatar} />
+                        <AvatarFallback>{member.name.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <p className="font-medium text-foreground">{member.name}</p>
+                        <p className="text-xs text-muted-foreground">{member.email}</p>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: 'plan',
+            header: 'Plan',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4',
+            render: (member) => <StatusBadge kind="member-plan" value={member.plan} />,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4',
+            render: (member) => <StatusBadge kind="member-status" value={member.status} />,
+        },
+        {
+            key: 'trainer',
+            header: 'Trainer',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4',
+            render: (member) => member.trainer,
+        },
+        {
+            key: 'attendance',
+            header: 'Attendance',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4',
+            render: (member) => `${member.attendanceRate}%`,
+        },
+        {
+            key: 'joinDate',
+            header: 'Join Date',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4 text-muted-foreground',
+            render: (member) => member.joinDate,
+        },
+    ]
 
     return (
         <div>
@@ -37,8 +96,8 @@ export default function MembersList() {
                         <Input
                             placeholder="Search by name, email, or phone"
                             className="pl-9"
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
+                                value={search.query}
+                                onChange={(e) => search.setQuery(e.target.value)}
                         />
                     </div>
                     <div className="flex gap-3">
@@ -70,63 +129,14 @@ export default function MembersList() {
 
             <Card>
                 <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b text-muted-foreground bg-muted/30">
-                                    <th className="text-left py-3 px-4 font-medium">Member</th>
-                                    <th className="text-left py-3 px-4 font-medium">Plan</th>
-                                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                                    <th className="text-left py-3 px-4 font-medium">Trainer</th>
-                                    <th className="text-left py-3 px-4 font-medium">Attendance</th>
-                                    <th className="text-left py-3 px-4 font-medium">Join Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredMembers.map((member) => (
-                                    <tr
-                                        key={member.id}
-                                        className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
-                                        onClick={() => navigate(`/members/${member.id}`)}
-                                    >
-                                        <td className="py-3 px-4">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="w-9 h-9">
-                                                    <AvatarImage src={member.avatar} />
-                                                    <AvatarFallback>{member.name.slice(0, 2)}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <p className="font-medium text-foreground">{member.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{member.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4">
-                                            <Badge variant={member.plan === 'Premium' ? 'success' : member.plan === 'Standard' ? 'info' : 'secondary'}>
-                                                {member.plan}
-                                            </Badge>
-                                        </td>
-                                        <td className="py-3 px-4">
-                                            <Badge
-                                                variant={
-                                                    member.status === 'Active'
-                                                        ? 'success'
-                                                        : member.status === 'Suspended'
-                                                            ? 'warning'
-                                                            : 'secondary'
-                                                }
-                                            >
-                                                {member.status}
-                                            </Badge>
-                                        </td>
-                                        <td className="py-3 px-4">{member.trainer}</td>
-                                        <td className="py-3 px-4">{member.attendanceRate}%</td>
-                                        <td className="py-3 px-4 text-muted-foreground">{member.joinDate}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable
+                        data={filteredMembers}
+                        columns={columns}
+                        getRowKey={(member) => member.id}
+                        onRowClick={(member) => navigate(`/members/${member.id}`)}
+                        rowClassName="hover:bg-muted/30 transition-colors"
+                        emptyMessage="No members found."
+                    />
                 </CardContent>
             </Card>
         </div>

@@ -5,10 +5,12 @@ import {
     ResponsiveContainer,
     Tooltip,
 } from 'recharts'
+import type { LeaveRequest } from '@/types'
 import PageHeader from '@/components/shared/PageHeader'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import DataTable, { type DataTableColumn } from '@/components/shared/DataTable'
+import StatusBadge from '@/components/shared/StatusBadge'
 import { leaveRequests } from '@/data/performance'
 
 const leaveTypeStats = [
@@ -19,6 +21,41 @@ const leaveTypeStats = [
 ]
 
 export default function LeaveManagementPage() {
+    const columns: DataTableColumn<LeaveRequest>[] = [
+        {
+            key: 'trainer',
+            header: 'Trainer',
+            render: (request) => (
+                <div className="flex items-center gap-2.5">
+                    <Avatar className="w-8 h-8">
+                        <AvatarImage src={request.trainerAvatar} />
+                        <AvatarFallback>{request.trainerName.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <span className="font-medium">{request.trainerName}</span>
+                </div>
+            ),
+        },
+        { key: 'type', header: 'Type', render: (request) => request.type },
+        {
+            key: 'dateRange',
+            header: 'Date Range',
+            cellClassName: 'text-muted-foreground',
+            render: (request) => `${request.startDate} to ${request.endDate}`,
+        },
+        { key: 'days', header: 'Days', render: (request) => request.days },
+        {
+            key: 'reason',
+            header: 'Reason',
+            cellClassName: 'text-muted-foreground',
+            render: (request) => request.reason,
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            render: (request) => <StatusBadge kind="leave-status" value={request.status} />,
+        },
+    ]
+
     return (
         <div>
             <PageHeader title="Leave Management" breadcrumb="GymHub / Leave Management" />
@@ -57,54 +94,11 @@ export default function LeaveManagementPage() {
                         <CardDescription>Trainer requests and approval status</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b text-muted-foreground">
-                                        <th className="text-left py-2 font-medium">Trainer</th>
-                                        <th className="text-left py-2 font-medium">Type</th>
-                                        <th className="text-left py-2 font-medium">Date Range</th>
-                                        <th className="text-left py-2 font-medium">Days</th>
-                                        <th className="text-left py-2 font-medium">Reason</th>
-                                        <th className="text-left py-2 font-medium">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {leaveRequests.map((request) => (
-                                        <tr key={request.id} className="border-b last:border-0">
-                                            <td className="py-2.5">
-                                                <div className="flex items-center gap-2.5">
-                                                    <Avatar className="w-8 h-8">
-                                                        <AvatarImage src={request.trainerAvatar} />
-                                                        <AvatarFallback>{request.trainerName.slice(0, 2)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span className="font-medium">{request.trainerName}</span>
-                                                </div>
-                                            </td>
-                                            <td className="py-2.5">{request.type}</td>
-                                            <td className="py-2.5 text-muted-foreground">
-                                                {request.startDate} to {request.endDate}
-                                            </td>
-                                            <td className="py-2.5">{request.days}</td>
-                                            <td className="py-2.5 text-muted-foreground">{request.reason}</td>
-                                            <td className="py-2.5">
-                                                <Badge
-                                                    variant={
-                                                        request.status === 'Approved'
-                                                            ? 'success'
-                                                            : request.status === 'Pending'
-                                                                ? 'warning'
-                                                                : 'danger'
-                                                    }
-                                                >
-                                                    {request.status}
-                                                </Badge>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <DataTable
+                            data={leaveRequests}
+                            columns={columns}
+                            getRowKey={(request) => request.id}
+                        />
                     </CardContent>
                 </Card>
             </div>
