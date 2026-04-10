@@ -1,75 +1,64 @@
-# React + TypeScript + Vite
+# Gym Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Gym management dashboard built with React, TypeScript, Vite, Tailwind, and Recharts.
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `npm run dev` starts local development.
+- `npm run build` runs type-check and production build.
+- `npm run preview` serves the production build locally.
+- `npm run lint` runs ESLint.
 
-## React Compiler
+## Folder Architecture
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+The app now uses a feature-first structure. New code should prefer direct imports from `src/features/*`, `src/components/*`, `src/routes`, and `src/utils`.
 
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```text
+src/
+  app/                    # app-level wiring (providers/config bootstrap)
+  assets/                 # global static assets
+  components/
+    Avatar/ Badge/ Button/ Card/ Input/ Progress/ Select/ Separator/ Tabs/
+    Modal/ PageHeader/ StatCard/ StatusBadge/ Table/
+    shared/ ui/ layout/    # compatibility shims (legacy import support)
+  constants/              # app constants and static config
+  features/
+    auth/                 # role dashboards + auth domain scaffolding
+    dashboard/
+    attendance/
+    inbox/
+    leave/
+    members/
+      hooks/
+      pages/
+      services/
+    payroll/
+    payments/
+    performance/
+    recruitment/
+    schedule/
+    subscriptions/
+    trainers/
+  hooks/                  # cross-feature reusable hooks
+  layouts/                # app shell and navigation layout
+  routes/                 # route declarations and route helpers
+  services/               # cross-feature API/service layer
+  types/                  # shared TypeScript types
+  utils/                  # helper functions
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Import Rules
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- Prefer importing domain logic from `src/features/<feature>/...`.
+- Prefer direct component imports from taxonomy folders (e.g. `src/components/Table`, `src/components/Button`).
+- Keep `src/components/shared` and `src/components/ui` as temporary compatibility layers only.
+- Keep reusable cross-domain hooks in `src/hooks`; keep domain-specific hooks in each feature folder.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Current Migration Status
+
+- Added and switched to `src/routes` from legacy router structure.
+- Migrated route pages and domain data into `src/features/*`.
+- Added services/hooks scaffolding to all feature domains.
+- Moved role and utility ownership to `src/utils`.
+- Reorganized UI/shared components into taxonomy folders under `src/components/*`.
+- Kept `src/components/shared`, `src/components/ui`, and `src/components/layout` as compatibility shims during transition.
