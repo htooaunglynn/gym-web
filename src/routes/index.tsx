@@ -5,6 +5,8 @@ import AdminLayout from '@/layouts/domains/AdminLayout'
 import MemberLayout from '@/layouts/domains/MemberLayout'
 import StaffLayout from '@/layouts/domains/StaffLayout'
 import TrainerLayout from '@/layouts/domains/TrainerLayout'
+import LoginPage from '@/features/auth/pages/LoginPage'
+import RegisterPage from '@/features/auth/pages/RegisterPage'
 import Dashboard from '@/features/dashboard/pages/Dashboard'
 import MembersList from '@/features/members/pages/MembersList'
 import MemberDetail from '@/features/members/pages/MemberDetail'
@@ -25,6 +27,10 @@ export default function AppRouter() {
 
     return (
         <Routes>
+            {/* Auth routes */}
+            <Route path="/auth/login" element={<LoginPage />} />
+            <Route path="/auth/register" element={<RegisterPage />} />
+
             <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
 
             {/* Legacy paths kept for smooth migration */}

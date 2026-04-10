@@ -1,7 +1,8 @@
-import { LayoutDashboard, UserRound } from 'lucide-react'
+import { LayoutDashboard, UserRound, ClipboardCheck } from 'lucide-react'
 import type { DomainNavItem } from '@/layouts/domains/types'
 
 export const memberNav: DomainNavItem[] = [
     { to: '/member/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/member/dashboard', icon: UserRound, label: 'My Profile' },
+    { to: '/member/attendance', icon: ClipboardCheck, label: 'My Attendance' },
+    { to: '/member/profile', icon: UserRound, label: 'My Profile' },
 ]

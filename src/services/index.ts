@@ -1,0 +1,8 @@
+export { apiClient, type ApiErrorResponse, type AppError } from './api'
+export { authService } from './auth'
+export { memberService } from './members'
+export { trainerService } from './trainers'
+export { userService } from './users'
+export { equipmentService } from './equipment'
+export { attendanceService } from './attendance'
+export { inventoryService } from './inventory'

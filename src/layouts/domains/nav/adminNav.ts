@@ -8,14 +8,21 @@ import {
     CalendarOff,
     MessageSquare,
     UserPlus,
+    Dumbbell,
+    Package,
+    UserCog,
 } from 'lucide-react'
 import type { DomainNavItem } from '@/layouts/domains/types'
 
 export const adminNav: DomainNavItem[] = [
     { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/admin/members', icon: Users, label: 'Members' },
-    { to: '/admin/calendar', icon: Calendar, label: 'Calendar' },
+    { to: '/admin/trainers', icon: UserPlus, label: 'Trainers' },
+    { to: '/admin/staff-users', icon: UserCog, label: 'Staff Management' },
     { to: '/admin/attendance', icon: ClipboardCheck, label: 'Attendance' },
+    { to: '/admin/equipment', icon: Dumbbell, label: 'Equipment' },
+    { to: '/admin/inventory-movements', icon: Package, label: 'Inventory Movements' },
+    { to: '/admin/calendar', icon: Calendar, label: 'Calendar' },
     { to: '/admin/performance', icon: TrendingUp, label: 'Performance' },
     { to: '/admin/payroll', icon: DollarSign, label: 'Payroll' },
     { to: '/admin/leave', icon: CalendarOff, label: 'Leave Management' },
