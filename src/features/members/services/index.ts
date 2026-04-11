@@ -1,1 +1,0 @@
-export { getMembers } from './memberService'
