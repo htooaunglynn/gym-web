@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? '/api' : 'http://localhost:3000')
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? '/api/v1' : 'http://localhost:3000/api/v1')
 
 // API Error response type
 export interface ApiErrorResponse {
@@ -85,6 +85,10 @@ export class ApiClient {
         if (status === 401) {
             if (typeof window !== 'undefined') {
                 localStorage.removeItem('gymhub_token')
+                localStorage.removeItem('gymhub_role')
+                if (!window.location.pathname.startsWith('/auth/login')) {
+                    window.location.assign('/auth/login')
+                }
             }
             return {
                 code: 401,

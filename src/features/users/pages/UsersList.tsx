@@ -1,104 +1,141 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import PageHeader from '@/components/PageHeader/PageHeader'
 import { Input } from '@/components/Input/input'
-import { Card, CardContent } from '@/components/Card/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/Card/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/Avatar/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/Select/select'
 import DataTable, { type DataTableColumn } from '@/components/Table/DataTable'
-import StatusBadge from '@/components/StatusBadge/StatusBadge'
-import { useMembers, type MemberListItem } from '@/features/members/hooks/useMembers'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { Button } from '@/components/ui/button'
 import { useApiMutation, useApiQuery, queryKeys, useInvalidateQueries } from '@/hooks/useApi'
-import { memberService, trainerService } from '@/services'
-import { useToast } from '@/hooks/useToast'
+import { userService } from '@/services'
 import { mapAppErrorToForm, type FormFieldErrors } from '@/utils/apiFormError'
+import { useToast } from '@/hooks/useToast'
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50]
 
-interface MemberFormState {
+type UserRole = 'ADMIN' | 'STAFF' | 'HR'
+
+interface UserRow {
+    id: string
+    name: string
+    email: string
+    phone: string
+    role: UserRole
+    updatedAt: string
+}
+
+interface UserFormState {
     firstName: string
     lastName: string
     email: string
     phone: string
-    trainerId: string
+    role: UserRole
+    password: string
 }
 
-const initialFormState: MemberFormState = {
+const initialFormState: UserFormState = {
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    trainerId: 'none',
+    role: 'STAFF',
+    password: '',
 }
 
-type MemberFormField = 'firstName' | 'lastName' | 'email' | 'phone' | 'trainerId'
+type UserFormField = 'firstName' | 'lastName' | 'email' | 'phone' | 'role' | 'password'
 
-export default function MembersList() {
-    const navigate = useNavigate()
+export default function UsersList() {
     const { addToast, addActionToast } = useToast()
-    const { invalidateMembers } = useInvalidateQueries()
+    const { invalidateUsers } = useInvalidateQueries()
+
     const [page, setPage] = useState<number>(1)
     const [limit, setLimit] = useState<number>(10)
-    const [statusFilter, setStatusFilter] = useState<string>('all')
+    const [query, setQuery] = useState('')
+    const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all')
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null)
-    const [selectedMember, setSelectedMember] = useState<MemberListItem | null>(null)
-    const [formState, setFormState] = useState<MemberFormState>(initialFormState)
+    const [selectedUser, setSelectedUser] = useState<UserRow | null>(null)
+    const [formState, setFormState] = useState<UserFormState>(initialFormState)
     const [formError, setFormError] = useState<string | null>(null)
-    const [fieldErrors, setFieldErrors] = useState<FormFieldErrors<MemberFormField>>({})
-    const { query, setQuery, filteredMembers, total, totalPages, isLoading, errorMessage } = useMembers({
-        page,
-        limit,
-        statusFilter,
-    })
+    const [fieldErrors, setFieldErrors] = useState<FormFieldErrors<UserFormField>>({})
 
-    const trainersQuery = useApiQuery(
-        [...queryKeys.trainers.lists(), 'member-form-trainers'],
-        () => trainerService.list({ page: 1, limit: 100, includeDeleted: false, includeMembers: false })
+    const usersQuery = useApiQuery(
+        queryKeys.users.list(page, limit),
+        () => userService.list({ page, limit, includeDeleted: false }),
+        {
+            placeholderData: (previousData) => previousData,
+        }
     )
 
-    const createMemberMutation = useApiMutation((payload: MemberFormState) =>
-        memberService.create({
+    const createUserMutation = useApiMutation((payload: UserFormState) =>
+        userService.create({
             firstName: payload.firstName,
             lastName: payload.lastName,
             email: payload.email,
             phone: payload.phone,
-            trainerId: payload.trainerId === 'none' ? null : payload.trainerId,
+            role: payload.role,
+            password: payload.password,
         })
     )
 
-    const updateMemberMutation = useApiMutation((payload: { id: string; form: MemberFormState }) =>
-        memberService.update(payload.id, {
+    const updateUserMutation = useApiMutation((payload: { id: string; form: UserFormState }) =>
+        userService.update(payload.id, {
             firstName: payload.form.firstName,
             lastName: payload.form.lastName,
             phone: payload.form.phone,
-            trainerId: payload.form.trainerId === 'none' ? null : payload.form.trainerId,
+            role: payload.form.role,
         })
     )
 
-    const deleteMemberMutation = useApiMutation((id: string) => memberService.delete(id))
+    const deleteUserMutation = useApiMutation((id: string) => userService.delete(id))
+
+    const rows = useMemo<UserRow[]>(() => {
+        const raw = usersQuery.data?.data ?? []
+        return raw.map((user) => {
+            const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email
+            return {
+                id: user.id,
+                name: fullName,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                updatedAt: new Date(user.updatedAt).toISOString().slice(0, 10),
+            }
+        })
+    }, [usersQuery.data])
+
+    const normalizedQuery = query.trim().toLowerCase()
+    const filteredRows = rows.filter((user) => {
+        const matchesQuery =
+            normalizedQuery.length === 0 ||
+            user.name.toLowerCase().includes(normalizedQuery) ||
+            user.email.toLowerCase().includes(normalizedQuery) ||
+            user.phone.toLowerCase().includes(normalizedQuery)
+        const matchesRole = roleFilter === 'all' || user.role === roleFilter
+        return matchesQuery && matchesRole
+    })
 
     const openCreateForm = () => {
         setFormMode('create')
-        setSelectedMember(null)
+        setSelectedUser(null)
         setFormState(initialFormState)
         setFormError(null)
         setFieldErrors({})
     }
 
-    const openEditForm = (member: MemberListItem) => {
+    const openEditForm = (user: UserRow) => {
         setFormMode('edit')
-        setSelectedMember(member)
-        const [firstName, ...rest] = member.name.split(' ')
+        setSelectedUser(user)
+        const [firstName, ...rest] = user.name.split(' ')
         setFormState({
             firstName: firstName ?? '',
             lastName: rest.join(' '),
-            email: member.email,
-            phone: member.phone,
-            trainerId: 'none',
+            email: user.email,
+            phone: user.phone,
+            role: user.role,
+            password: '',
         })
         setFormError(null)
         setFieldErrors({})
@@ -106,39 +143,41 @@ export default function MembersList() {
 
     const closeForm = () => {
         setFormMode(null)
-        setSelectedMember(null)
+        setSelectedUser(null)
         setFormState(initialFormState)
         setFormError(null)
         setFieldErrors({})
     }
 
-    const saveMember = async (mode: 'create' | 'edit', payload: MemberFormState, memberId?: string) => {
+    const saveUser = async (mode: 'create' | 'edit', payload: UserFormState, userId?: string) => {
         if (mode === 'create') {
-            await createMemberMutation.mutateAsync(payload)
-            addToast('Member created successfully', 'success')
+            await createUserMutation.mutateAsync(payload)
+            addToast('User created successfully', 'success')
             return
         }
 
-        if (!memberId) {
-            throw new Error('Missing member id for update')
+        if (!userId) {
+            throw new Error('Missing user id for update')
         }
 
-        await updateMemberMutation.mutateAsync({ id: memberId, form: payload })
-        addToast('Member updated successfully', 'success')
+        await updateUserMutation.mutateAsync({ id: userId, form: payload })
+        addToast('User updated successfully', 'success')
     }
 
-    const deleteMember = async (member: MemberListItem) => {
-        await deleteMemberMutation.mutateAsync(member.id)
-        addToast('Member deleted successfully', 'success')
-        invalidateMembers()
+    const deleteUser = async (user: UserRow) => {
+        await deleteUserMutation.mutateAsync(user.id)
+        addToast('User deleted successfully', 'success')
+        invalidateUsers()
     }
 
     const submitForm = async () => {
-        const nextFieldErrors: FormFieldErrors<MemberFormField> = {
+        const nextFieldErrors: FormFieldErrors<UserFormField> = {
             firstName: formState.firstName ? undefined : 'First name is required',
             lastName: formState.lastName ? undefined : 'Last name is required',
             email: formState.email ? undefined : 'Email is required',
             phone: formState.phone ? undefined : 'Phone is required',
+            role: formState.role ? undefined : 'Role is required',
+            password: formMode === 'create' && !formState.password ? 'Password is required' : undefined,
         }
 
         const hasRequiredErrors = Object.values(nextFieldErrors).some(Boolean)
@@ -153,108 +192,111 @@ export default function MembersList() {
 
         try {
             const payload = { ...formState }
-            const memberId = selectedMember?.id
-            await saveMember(formMode === 'create' ? 'create' : 'edit', payload, memberId)
+            const userId = selectedUser?.id
+            await saveUser(formMode === 'create' ? 'create' : 'edit', payload, userId)
 
             closeForm()
-            invalidateMembers()
+            invalidateUsers()
         } catch (error: unknown) {
             const payload = { ...formState }
-            const memberId = selectedMember?.id
-            const mapped = mapAppErrorToForm<MemberFormField>(error, {
-                fallbackMessage: 'Failed to save member',
+            const userId = selectedUser?.id
+            const mapped = mapAppErrorToForm<UserFormField>(error, {
+                fallbackMessage: 'Failed to save user',
                 fieldMatchers: {
                     email: /email/i,
                     phone: /phone/i,
                     firstName: /first\s*name/i,
                     lastName: /last\s*name/i,
-                    trainerId: /trainer/i,
+                    role: /role/i,
+                    password: /password/i,
                 },
             })
             setFieldErrors(mapped.fieldErrors)
             setFormError(mapped.message)
             addActionToast(mapped.message, 'error', 'Retry', () => {
-                void saveMember(formMode === 'create' ? 'create' : 'edit', payload, memberId)
+                void saveUser(formMode === 'create' ? 'create' : 'edit', payload, userId)
             })
         }
     }
 
-    const handleDelete = async (member: MemberListItem) => {
-        const confirmed = window.confirm(`Delete ${member.name}?`)
+    const handleDelete = async (user: UserRow) => {
+        const confirmed = window.confirm(`Delete ${user.name}?`)
         if (!confirmed) {
             return
         }
 
         try {
-            await deleteMember(member)
+            await deleteUser(user)
         } catch (error: unknown) {
-            const mapped = mapAppErrorToForm<MemberFormField>(error, {
-                fallbackMessage: 'Failed to delete member',
+            const mapped = mapAppErrorToForm<UserFormField>(error, {
+                fallbackMessage: 'Failed to delete user',
                 fieldMatchers: {
                     email: /email/i,
                     phone: /phone/i,
                     firstName: /first\s*name/i,
                     lastName: /last\s*name/i,
-                    trainerId: /trainer/i,
+                    role: /role/i,
+                    password: /password/i,
                 },
             })
+            setFormError(mapped.message)
             addActionToast(mapped.message, 'error', 'Retry', () => {
-                void deleteMember(member)
+                void deleteUser(user)
             })
         }
     }
 
-    const columns: DataTableColumn<MemberListItem>[] = [
+    const columns: DataTableColumn<UserRow>[] = [
         {
-            key: 'member',
-            header: 'Member',
+            key: 'user',
+            header: 'User',
             headerClassName: 'py-3 px-4',
             cellClassName: 'py-3 px-4',
-            render: (member) => (
+            render: (user) => (
                 <div className="flex items-center gap-3">
                     <Avatar className="w-9 h-9">
-                        <AvatarImage src={member.avatar} />
-                        <AvatarFallback>{member.name.slice(0, 2)}</AvatarFallback>
+                        <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`} />
+                        <AvatarFallback>{user.name.slice(0, 2)}</AvatarFallback>
                     </Avatar>
                     <div>
-                        <p className="font-medium text-foreground">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">{member.email}</p>
+                        <p className="font-medium text-foreground">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
                 </div>
             ),
         },
         {
-            key: 'status',
-            header: 'Status',
-            headerClassName: 'py-3 px-4',
-            cellClassName: 'py-3 px-4',
-            render: (member) => <StatusBadge kind="member-status" value={member.status} />,
-        },
-        {
-            key: 'trainer',
-            header: 'Trainer',
-            headerClassName: 'py-3 px-4',
-            cellClassName: 'py-3 px-4',
-            render: (member) => member.trainer,
-        },
-        {
-            key: 'joinDate',
-            header: 'Join Date',
+            key: 'phone',
+            header: 'Phone',
             headerClassName: 'py-3 px-4',
             cellClassName: 'py-3 px-4 text-muted-foreground',
-            render: (member) => member.joinDate,
+            render: (user) => user.phone,
+        },
+        {
+            key: 'role',
+            header: 'Role',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4',
+            render: (user) => user.role,
+        },
+        {
+            key: 'updatedAt',
+            header: 'Updated At',
+            headerClassName: 'py-3 px-4',
+            cellClassName: 'py-3 px-4 text-muted-foreground',
+            render: (user) => user.updatedAt,
         },
         {
             key: 'actions',
             header: 'Actions',
             headerClassName: 'py-3 px-4',
             cellClassName: 'py-3 px-4',
-            render: (member) => (
+            render: (user) => (
                 <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                    <Button size="sm" variant="outline" onClick={() => openEditForm(member)}>
+                    <Button size="sm" variant="outline" onClick={() => openEditForm(user)}>
                         Edit
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => void handleDelete(member)}>
+                    <Button size="sm" variant="destructive" onClick={() => void handleDelete(user)}>
                         Delete
                     </Button>
                 </div>
@@ -264,15 +306,13 @@ export default function MembersList() {
 
     return (
         <div>
-            <PageHeader title="Members" breadcrumb="GymHub / Members">
-                <Button onClick={openCreateForm}>
-                    Add Member
-                </Button>
+            <PageHeader title="Staff Management" breadcrumb="GymHub / Staff Management">
+                <Button onClick={openCreateForm}>Add User</Button>
             </PageHeader>
 
             {formMode ? (
                 <Card className="mb-4">
-                    <CardContent className="p-4">
+                    <CardContent className="p-4 space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <Input
                                 placeholder="First name"
@@ -313,33 +353,48 @@ export default function MembersList() {
                             />
                             {fieldErrors.phone ? <p className="text-xs text-destructive">{fieldErrors.phone}</p> : null}
                             <Select
-                                value={formState.trainerId}
-                                onValueChange={(value) => setFormState((prev) => ({ ...prev, trainerId: value }))}
+                                value={formState.role}
+                                onValueChange={(value: UserRole) =>
+                                    setFormState((prev) => ({ ...prev, role: value }))
+                                }
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Assign trainer" />
+                                    <SelectValue placeholder="Role" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="none">Unassigned</SelectItem>
-                                    {(trainersQuery.data?.data ?? []).map((trainer) => (
-                                        <SelectItem key={trainer.id} value={trainer.id}>
-                                            {`${trainer.firstName} ${trainer.lastName}`.trim()}
-                                        </SelectItem>
-                                    ))}
+                                    <SelectItem value="ADMIN">ADMIN</SelectItem>
+                                    <SelectItem value="STAFF">STAFF</SelectItem>
+                                    <SelectItem value="HR">HR</SelectItem>
                                 </SelectContent>
                             </Select>
-                            {fieldErrors.trainerId ? <p className="text-xs text-destructive">{fieldErrors.trainerId}</p> : null}
+                            {fieldErrors.role ? <p className="text-xs text-destructive">{fieldErrors.role}</p> : null}
+                            {formMode === 'create' ? (
+                                <>
+                                    <Input
+                                        placeholder="Password"
+                                        type="password"
+                                        value={formState.password}
+                                        onChange={(event) =>
+                                            setFormState((prev) => ({ ...prev, password: event.target.value }))
+                                        }
+                                        className={fieldErrors.password ? 'border-destructive' : ''}
+                                    />
+                                    {fieldErrors.password ? <p className="text-xs text-destructive">{fieldErrors.password}</p> : null}
+                                </>
+                            ) : null}
                         </div>
-                        {formError ? <p className="mt-3 text-sm text-destructive">{formError}</p> : null}
+
+                        {formError ? (
+                            <p className="text-sm text-destructive">{formError}</p>
+                        ) : null}
+
                         <div className="mt-3 flex justify-end gap-2">
-                            <Button variant="outline" onClick={closeForm}>
-                                Cancel
-                            </Button>
+                            <Button variant="outline" onClick={closeForm}>Cancel</Button>
                             <Button
                                 onClick={() => void submitForm()}
-                                disabled={createMemberMutation.isPending || updateMemberMutation.isPending}
+                                disabled={createUserMutation.isPending || updateUserMutation.isPending}
                             >
-                                {formMode === 'create' ? 'Create Member' : 'Update Member'}
+                                {formMode === 'create' ? 'Create User' : 'Update User'}
                             </Button>
                         </div>
                     </CardContent>
@@ -354,28 +409,28 @@ export default function MembersList() {
                             placeholder="Search by name, email, or phone"
                             className="pl-9"
                             value={query}
-                            onChange={(e) => {
-                                setQuery(e.target.value)
+                            onChange={(event) => {
+                                setQuery(event.target.value)
                                 setPage(1)
                             }}
                         />
                     </div>
                     <div className="flex gap-3">
                         <Select
-                            value={statusFilter}
-                            onValueChange={(value) => {
-                                setStatusFilter(value)
+                            value={roleFilter}
+                            onValueChange={(value: 'all' | UserRole) => {
+                                setRoleFilter(value)
                                 setPage(1)
                             }}
                         >
                             <SelectTrigger className="w-36">
-                                <SelectValue placeholder="Status" />
+                                <SelectValue placeholder="Role" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Statuses</SelectItem>
-                                <SelectItem value="Active">Active</SelectItem>
-                                <SelectItem value="Inactive">Inactive</SelectItem>
-                                <SelectItem value="Suspended">Suspended</SelectItem>
+                                <SelectItem value="all">All Roles</SelectItem>
+                                <SelectItem value="ADMIN">ADMIN</SelectItem>
+                                <SelectItem value="STAFF">STAFF</SelectItem>
+                                <SelectItem value="HR">HR</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select
@@ -399,29 +454,34 @@ export default function MembersList() {
             </Card>
 
             <Card>
+                <CardHeader>
+                    <CardTitle>Staff Users</CardTitle>
+                    <CardDescription>{usersQuery.data?.total ?? 0} records</CardDescription>
+                </CardHeader>
                 <CardContent className="p-0">
-                    {isLoading ? (
+                    {usersQuery.isLoading ? (
                         <div className="py-10">
                             <LoadingSpinner />
                         </div>
-                    ) : errorMessage ? (
+                    ) : usersQuery.error ? (
                         <div className="p-4">
-                            <ErrorState message={errorMessage} />
+                            <ErrorState
+                                message={usersQuery.error.userMessage}
+                                onRetry={() => void usersQuery.refetch()}
+                            />
                         </div>
                     ) : (
                         <>
-                            <div className="px-4 pt-4 text-sm text-muted-foreground">{total} records</div>
                             <DataTable
-                                data={filteredMembers}
+                                data={filteredRows}
                                 columns={columns}
-                                getRowKey={(member) => member.id}
-                                onRowClick={(member) => navigate(`/admin/members/${member.id}`)}
+                                getRowKey={(user) => user.id}
                                 rowClassName="hover:bg-muted/30 transition-colors"
-                                emptyMessage="No members found."
+                                emptyMessage="No users found."
                             />
                             <div className="flex items-center justify-between p-4 border-t">
                                 <p className="text-sm text-muted-foreground">
-                                    Page {page} of {Math.max(totalPages, 1)}
+                                    Page {page} of {Math.max(usersQuery.data?.totalPages ?? 1, 1)}
                                 </p>
                                 <div className="flex items-center gap-2">
                                     <Button
@@ -435,8 +495,10 @@ export default function MembersList() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setPage((prev) => Math.min(prev + 1, Math.max(totalPages, 1)))}
-                                        disabled={page >= Math.max(totalPages, 1)}
+                                        onClick={() =>
+                                            setPage((prev) => Math.min(prev + 1, Math.max(usersQuery.data?.totalPages ?? 1, 1)))
+                                        }
+                                        disabled={page >= Math.max(usersQuery.data?.totalPages ?? 1, 1)}
                                     >
                                         Next
                                     </Button>

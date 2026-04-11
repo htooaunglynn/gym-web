@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
     ArrowDownLeft,
     ArrowUpRight,
@@ -171,16 +171,6 @@ export default function Dashboard() {
     const paymentDateToApi = paymentDatePreset === 'custom'
         ? toApiDateEnd(paymentDateTo)
         : toApiDateEnd(getPresetDateRange(paymentDatePreset as Exclude<DatePreset, 'custom'>).to)
-
-    useEffect(() => {
-        setIncomingInventoryPage(1)
-        setOutgoingInventoryPage(1)
-    }, [inventoryDateFromApi, inventoryDateToApi])
-
-    useEffect(() => {
-        setIncomingPaymentsPage(1)
-        setOutgoingPaymentsPage(1)
-    }, [paymentDateFromApi, paymentDateToApi])
 
     const membersQuery = useApiQuery(
         queryKeys.members.list(membersPage, tableLimit),
@@ -510,14 +500,24 @@ export default function Dashboard() {
                     to={inventoryDateTo}
                     onPresetChange={(value) => {
                         setInventoryDatePreset(value)
+                        setIncomingInventoryPage(1)
+                        setOutgoingInventoryPage(1)
                         if (value !== 'custom') {
                             const next = getPresetDateRange(value)
                             setInventoryDateFrom(next.from)
                             setInventoryDateTo(next.to)
                         }
                     }}
-                    onFromChange={setInventoryDateFrom}
-                    onToChange={setInventoryDateTo}
+                    onFromChange={(value) => {
+                        setInventoryDateFrom(value)
+                        setIncomingInventoryPage(1)
+                        setOutgoingInventoryPage(1)
+                    }}
+                    onToChange={(value) => {
+                        setInventoryDateTo(value)
+                        setIncomingInventoryPage(1)
+                        setOutgoingInventoryPage(1)
+                    }}
                 />
 
                 <DashboardDateRangeFilter
@@ -528,14 +528,24 @@ export default function Dashboard() {
                     to={paymentDateTo}
                     onPresetChange={(value) => {
                         setPaymentDatePreset(value)
+                        setIncomingPaymentsPage(1)
+                        setOutgoingPaymentsPage(1)
                         if (value !== 'custom') {
                             const next = getPresetDateRange(value)
                             setPaymentDateFrom(next.from)
                             setPaymentDateTo(next.to)
                         }
                     }}
-                    onFromChange={setPaymentDateFrom}
-                    onToChange={setPaymentDateTo}
+                    onFromChange={(value) => {
+                        setPaymentDateFrom(value)
+                        setIncomingPaymentsPage(1)
+                        setOutgoingPaymentsPage(1)
+                    }}
+                    onToChange={(value) => {
+                        setPaymentDateTo(value)
+                        setIncomingPaymentsPage(1)
+                        setOutgoingPaymentsPage(1)
+                    }}
                 />
             </div>
 

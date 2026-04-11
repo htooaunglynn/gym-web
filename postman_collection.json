@@ -22,7 +22,7 @@
     "variable": [
         {
             "key": "baseUrl",
-            "value": "http://localhost:3000"
+            "value": "http://localhost:3000/api/v1"
         },
         {
             "key": "userId",

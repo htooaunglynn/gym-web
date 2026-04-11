@@ -8,6 +8,8 @@ interface ToastProps {
     type: ToastType
     message: string
     duration?: number
+    actionLabel?: string
+    onAction?: () => void
     onClose: (id: string) => void
 }
 
@@ -32,7 +34,7 @@ const iconColorMap: Record<ToastType, string> = {
     info: 'text-blue-600',
 }
 
-export function Toast({ id, type, message, duration = 5000, onClose }: ToastProps) {
+export function Toast({ id, type, message, duration = 5000, actionLabel, onAction, onClose }: ToastProps) {
     const [isExiting, setIsExiting] = useState(false)
 
     useEffect(() => {
@@ -57,6 +59,18 @@ export function Toast({ id, type, message, duration = 5000, onClose }: ToastProp
         >
             <div className={iconColorMap[type]}>{iconMap[type]}</div>
             <p className="flex-1 text-sm font-medium">{message}</p>
+            {actionLabel && onAction ? (
+                <button
+                    onClick={() => {
+                        onAction()
+                        setIsExiting(true)
+                        setTimeout(() => onClose(id), 300)
+                    }}
+                    className="rounded-md border border-current/20 px-2 py-1 text-xs font-semibold hover:bg-black/5"
+                >
+                    {actionLabel}
+                </button>
+            ) : null}
             <button
                 onClick={() => {
                     setIsExiting(true)

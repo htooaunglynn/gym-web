@@ -18,6 +18,8 @@ import PayrollPage from '@/features/payroll/pages/PayrollPage'
 import LeaveManagementPage from '@/features/leave/pages/LeaveManagementPage'
 import InboxPage from '@/features/inbox/pages/InboxPage'
 import RecruitmentPage from '@/features/recruitment/pages/RecruitmentPage'
+import TrainersList from '@/features/trainers/pages/TrainersList'
+import UsersList from '@/features/users/pages/UsersList'
 import MemberDashboardPage from '@/features/auth/pages/MemberDashboardPage'
 import StaffDashboardPage from '@/features/auth/pages/StaffDashboardPage'
 import TrainerDashboardPage from '@/features/trainers/pages/TrainerDashboardPage'
@@ -73,6 +75,8 @@ export default function AppRouter() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="members" element={<MembersList />} />
                 <Route path="members/:id" element={<MemberDetail />} />
+                <Route path="trainers" element={<TrainersList />} />
+                <Route path="staff-users" element={<UsersList />} />
                 <Route path="equipment" element={<EquipmentList />} />
                 <Route path="inventory-movements" element={<InventoryMovementsPage />} />
                 <Route path="calendar" element={<CalendarPage />} />

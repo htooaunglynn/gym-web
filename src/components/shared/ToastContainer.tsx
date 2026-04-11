@@ -14,6 +14,8 @@ export default function ToastContainer() {
                     type={toast.type}
                     message={toast.message}
                     duration={toast.duration}
+                    actionLabel={toast.actionLabel}
+                    onAction={toast.onAction}
                     onClose={removeToast}
                 />
             ))}
