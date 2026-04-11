@@ -1,8 +1,18 @@
 export type UserRole = 'admin' | 'member' | 'staff' | 'trainer'
 
+type ApiRole = 'ADMIN' | 'STAFF' | 'HR' | 'MEMBER' | 'TRAINER'
+
 const ROLE_STORAGE_KEY = 'gymhub_role'
 
 const VALID_ROLES: UserRole[] = ['admin', 'member', 'staff', 'trainer']
+
+const API_ROLE_MAP: Record<ApiRole, UserRole> = {
+    ADMIN: 'admin',
+    STAFF: 'staff',
+    HR: 'staff',
+    MEMBER: 'member',
+    TRAINER: 'trainer',
+}
 
 export const roleLabels: Record<UserRole, string> = {
     admin: 'Admin',
@@ -35,16 +45,17 @@ export function setCurrentRole(role: UserRole): void {
     window.localStorage.setItem(ROLE_STORAGE_KEY, role)
 }
 
-export function getCurrentRole(): UserRole {
+export function clearCurrentRole(): void {
     if (typeof window === 'undefined') {
-        return 'admin'
+        return
     }
 
-    const queryRole = new URLSearchParams(window.location.search).get('as')
+    window.localStorage.removeItem(ROLE_STORAGE_KEY)
+}
 
-    if (isUserRole(queryRole)) {
-        setCurrentRole(queryRole)
-        return queryRole
+export function getStoredRole(): UserRole | null {
+    if (typeof window === 'undefined') {
+        return null
     }
 
     const storedRole = window.localStorage.getItem(ROLE_STORAGE_KEY)
@@ -53,5 +64,13 @@ export function getCurrentRole(): UserRole {
         return storedRole
     }
 
-    return 'admin'
+    return null
+}
+
+export function getCurrentRole(fallback: UserRole = 'admin'): UserRole {
+    return getStoredRole() ?? fallback
+}
+
+export function mapApiRoleToAppRole(apiRole: ApiRole | string): UserRole {
+    return API_ROLE_MAP[apiRole as ApiRole] ?? 'member'
 }

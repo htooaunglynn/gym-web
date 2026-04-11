@@ -1,25 +1,15 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { authService } from '@/services'
+import { useState, useEffect, type ReactNode } from 'react'
+import { authService, type AppError } from '@/services'
+import { clearCurrentRole, getRoleDashboardPath, mapApiRoleToAppRole, setCurrentRole } from '@/utils/role'
+import { AuthContext } from '@/features/auth/hooks/auth-context'
 import type { MeResponse } from '@/types/api'
-import { setCurrentRole } from '@/utils/role'
-
-interface AuthContextType {
-    currentUser: MeResponse | null
-    isAuthenticated: boolean
-    isLoading: boolean
-    error: string | null
-    login: (email: string, password: string) => Promise<void>
-    registerMember: (email: string, phone: string, firstName: string, lastName: string, password: string) => Promise<void>
-    logout: () => void
-    clearError: () => void
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [currentUser, setCurrentUser] = useState<MeResponse | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const currentUserRole = currentUser ? mapApiRoleToAppRole(currentUser.role) : null
+    const dashboardPath = currentUserRole ? getRoleDashboardPath(currentUserRole) : null
 
     // Bootstrap auth on mount
     useEffect(() => {
@@ -29,11 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 try {
                     const user = await authService.getMe()
                     setCurrentUser(user)
-                    // Map API role to app role
                     const appRole = mapApiRoleToAppRole(user.role)
-                    setCurrentRole(appRole as any)
-                } catch (err) {
+                    setCurrentRole(appRole)
+                } catch {
                     authService.setAuthToken('')
+                    clearCurrentRole()
                     setCurrentUser(null)
                 }
             }
@@ -51,11 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const user = await authService.getMe()
             setCurrentUser(user)
             const appRole = mapApiRoleToAppRole(user.role)
-            setCurrentRole(appRole as any)
-        } catch (err: any) {
-            const message = err?.userMessage || 'Login failed'
+            setCurrentRole(appRole)
+            return appRole
+        } catch (error: unknown) {
+            const message = getErrorMessage(error, 'Login failed')
             setError(message)
-            throw err
+            throw error
         } finally {
             setIsLoading(false)
         }
@@ -82,11 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const user = await authService.getMe()
             setCurrentUser(user)
             const appRole = mapApiRoleToAppRole(user.role)
-            setCurrentRole(appRole as any)
-        } catch (err: any) {
-            const message = err?.userMessage || 'Registration failed'
+            setCurrentRole(appRole)
+            return appRole
+        } catch (error: unknown) {
+            const message = getErrorMessage(error, 'Registration failed')
             setError(message)
-            throw err
+            throw error
         } finally {
             setIsLoading(false)
         }
@@ -94,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const logout = () => {
         authService.logout()
+        clearCurrentRole()
         setCurrentUser(null)
         setError(null)
     }
@@ -106,6 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <AuthContext.Provider
             value={{
                 currentUser,
+                currentUserRole,
+                dashboardPath,
                 isAuthenticated: !!currentUser,
                 isLoading,
                 error,
@@ -120,22 +115,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 }
 
-export function useAuth() {
-    const context = useContext(AuthContext)
-    if (!context) {
-        throw new Error('useAuth must be used within AuthProvider')
+function getErrorMessage(error: unknown, fallback: string): string {
+    if (isAppError(error)) {
+        return error.userMessage
     }
-    return context
+
+    return fallback
 }
 
-// Helper to map API roles to app roles
-function mapApiRoleToAppRole(apiRole: string): string {
-    const roleMap: Record<string, string> = {
-        ADMIN: 'admin',
-        STAFF: 'staff',
-        HR: 'staff',
-        MEMBER: 'member',
-        TRAINER: 'trainer',
-    }
-    return roleMap[apiRole] || 'member'
+function isAppError(error: unknown): error is AppError {
+    return typeof error === 'object' && error !== null && 'userMessage' in error
 }

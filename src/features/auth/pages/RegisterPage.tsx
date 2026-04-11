@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useAuth } from '@/features/auth/hooks/useAuthContext'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import type { AppError } from '@/services'
 import { useToast } from '@/hooks/useToast'
 import { copy } from '@/constants/copy'
+import { getRoleDashboardPath } from '@/utils/role'
 
 export default function RegisterPage() {
     const navigate = useNavigate()
-    const { registerMember, isLoading } = useAuth()
+    const { registerMember, isAuthenticated, isLoading, dashboardPath } = useAuth()
     const { addToast } = useToast()
     const [formData, setFormData] = useState({
         firstName: '',
@@ -21,6 +23,10 @@ export default function RegisterPage() {
         confirmPassword: '',
     })
     const [errors, setErrors] = useState<Record<string, string>>({})
+
+    if (!isLoading && isAuthenticated && dashboardPath) {
+        return <Navigate to={dashboardPath} replace />
+    }
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {}
@@ -61,7 +67,7 @@ export default function RegisterPage() {
         if (!validateForm()) return
 
         try {
-            await registerMember(
+            const role = await registerMember(
                 formData.email,
                 formData.phone,
                 formData.firstName,
@@ -69,9 +75,9 @@ export default function RegisterPage() {
                 formData.password
             )
             addToast(copy.auth.registerSuccess, 'success')
-            navigate('/member/dashboard')
-        } catch (error: any) {
-            addToast(error?.userMessage || copy.auth.registerError, 'error')
+            navigate(getRoleDashboardPath(role), { replace: true })
+        } catch (error: unknown) {
+            addToast(getErrorMessage(error, copy.auth.registerError), 'error')
         }
     }
 
@@ -194,4 +200,16 @@ export default function RegisterPage() {
             </Card>
         </div>
     )
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+    if (isAppError(error)) {
+        return error.userMessage
+    }
+
+    return fallback
+}
+
+function isAppError(error: unknown): error is AppError {
+    return typeof error === 'object' && error !== null && 'userMessage' in error
 }

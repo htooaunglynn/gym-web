@@ -3,7 +3,7 @@ import type { AppError } from '@/services'
 
 // Custom hook for queries with standard error handling
 export function useApiQuery<TData>(
-    queryKey: string[],
+    queryKey: readonly unknown[],
     queryFn: () => Promise<TData>,
     options?: Omit<UseQueryOptions<TData, AppError>, 'queryKey' | 'queryFn'>
 ) {
@@ -75,6 +75,13 @@ export const queryKeys = {
         details: () => [...queryKeys.inventory.all, 'detail'] as const,
         detail: (id: string) => [...queryKeys.inventory.details(), id] as const,
     },
+    payments: {
+        all: ['payments'] as const,
+        lists: () => [...queryKeys.payments.all, 'list'] as const,
+        list: (filters: Record<string, any>) => [...queryKeys.payments.lists(), filters] as const,
+        details: () => [...queryKeys.payments.all, 'detail'] as const,
+        detail: (id: string) => [...queryKeys.payments.details(), id] as const,
+    },
 }
 
 // Utility hook to invalidate queries after mutations
@@ -87,5 +94,6 @@ export function useInvalidateQueries() {
         invalidateEquipment: () => queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all }),
         invalidateAttendance: () => queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all }),
         invalidateInventory: () => queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
+        invalidatePayments: () => queryClient.invalidateQueries({ queryKey: queryKeys.payments.all }),
     }
 }

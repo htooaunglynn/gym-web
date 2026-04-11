@@ -1,47 +1,418 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
+    ArrowDownLeft,
+    ArrowUpRight,
+    Boxes,
     Users,
-    Wallet,
-    CalendarCheck,
-    Activity,
-    Clock,
-    CircleDollarSign,
 } from 'lucide-react'
-import {
-    AreaChart,
-    Area,
-    BarChart,
-    Bar,
-    PieChart,
-    Pie,
-    Cell,
-    ResponsiveContainer,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-} from 'recharts'
-import type { Member } from '@/features/members/types'
 import PageHeader from '@/components/PageHeader/PageHeader'
 import StatCard from '@/components/StatCard/StatCard'
-import { Badge } from '@/components/Badge/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/Card/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/Avatar/avatar'
 import DataTable, { type DataTableColumn } from '@/components/Table/DataTable'
 import StatusBadge from '@/components/StatusBadge/StatusBadge'
-import { members } from '@/features/members/data'
-import { monthlyStats, planDistribution } from '@/features/performance/data'
-import { weeklyAttendance } from '@/features/attendance/data'
-import { classes } from '@/features/schedule/data'
+import { ErrorState } from '@/components/shared/ErrorState'
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useApiQuery, queryKeys } from '@/hooks/useApi'
+import { equipmentService, inventoryService, memberService, paymentService } from '@/services'
+
+type MemberRow = {
+    id: string
+    name: string
+    email: string
+    avatar: string
+    status: 'Active' | 'Inactive'
+    joinDate: string
+}
+
+type EquipmentRow = {
+    id: string
+    name: string
+    quantity: number
+    condition: 'GOOD' | 'FAIR' | 'POOR'
+    managedBy: string
+    updatedAt: string
+}
+
+type InventoryRow = {
+    id: string
+    equipmentId: string
+    quantity: number
+    reason: string
+    occurredAt: string
+}
+
+type PaymentRow = {
+    id: string
+    memberName: string
+    amount: number
+    status: 'Paid' | 'Pending' | 'Overdue'
+    method: 'Credit Card' | 'Bank Transfer' | 'Cash'
+    date: string
+}
+
+type DatePreset = 'today' | '7d' | '30d' | 'custom'
+
+function formatCurrency(amount: number): string {
+    return `$${amount.toLocaleString()}`
+}
+
+function formatInputDate(date: Date): string {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
+function getPresetDateRange(preset: Exclude<DatePreset, 'custom'>): { from: string; to: string } {
+    const today = new Date()
+    const start = new Date(today)
+
+    if (preset === '7d') {
+        start.setDate(today.getDate() - 6)
+    }
+
+    if (preset === '30d') {
+        start.setDate(today.getDate() - 29)
+    }
+
+    return {
+        from: formatInputDate(start),
+        to: formatInputDate(today),
+    }
+}
+
+function toApiDateStart(date: string | undefined): string | undefined {
+    if (!date) {
+        return undefined
+    }
+
+    return `${date}T00:00:00.000Z`
+}
+
+function toApiDateEnd(date: string | undefined): string | undefined {
+    if (!date) {
+        return undefined
+    }
+
+    return `${date}T23:59:59.999Z`
+}
+
+function PaginationControls({
+    page,
+    totalPages,
+    onPrevious,
+    onNext,
+}: {
+    page: number
+    totalPages: number
+    onPrevious: () => void
+    onNext: () => void
+}) {
+    return (
+        <div className="flex items-center justify-between p-4 border-t">
+            <p className="text-sm text-muted-foreground">
+                Page {page} of {Math.max(totalPages, 1)}
+            </p>
+            <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={onPrevious} disabled={page <= 1}>
+                    Previous
+                </Button>
+                <Button variant="outline" size="sm" onClick={onNext} disabled={page >= Math.max(totalPages, 1)}>
+                    Next
+                </Button>
+            </div>
+        </div>
+    )
+}
 
 export default function Dashboard() {
-    const totalMembers = members.length
-    const activeMembers = members.filter((m) => m.status === 'Active').length
-    const todayRevenue = 1840
-    const todayClasses = classes.filter((c) => c.date === '2026-04-05')
-    const recentMembers = members.slice(0, 7)
+    const tableLimit = 10
+    const paymentsFetchLimit = 200
+    const defaultRange = getPresetDateRange('7d')
 
-    const recentColumns: DataTableColumn<Member>[] = [
+    const [membersPage, setMembersPage] = useState(1)
+    const [equipmentPage, setEquipmentPage] = useState(1)
+    const [incomingInventoryPage, setIncomingInventoryPage] = useState(1)
+    const [outgoingInventoryPage, setOutgoingInventoryPage] = useState(1)
+    const [incomingPaymentsPage, setIncomingPaymentsPage] = useState(1)
+    const [outgoingPaymentsPage, setOutgoingPaymentsPage] = useState(1)
+    const [memberSearch, setMemberSearch] = useState('')
+    const [memberStatusFilter, setMemberStatusFilter] = useState<'all' | 'Active' | 'Inactive'>('all')
+    const [equipmentSearch, setEquipmentSearch] = useState('')
+    const [equipmentConditionFilter, setEquipmentConditionFilter] = useState<'all' | 'GOOD' | 'FAIR' | 'POOR'>('all')
+    const [incomingInventorySearch, setIncomingInventorySearch] = useState('')
+    const [outgoingInventorySearch, setOutgoingInventorySearch] = useState('')
+    const [incomingMethodFilter, setIncomingMethodFilter] = useState<'all' | 'Credit Card' | 'Bank Transfer' | 'Cash'>('all')
+    const [outgoingMethodFilter, setOutgoingMethodFilter] = useState<'all' | 'Credit Card' | 'Bank Transfer' | 'Cash'>('all')
+    const [outgoingStatusFilter, setOutgoingStatusFilter] = useState<'uncollected' | 'Pending' | 'Overdue'>('uncollected')
+    const [inventoryDatePreset, setInventoryDatePreset] = useState<DatePreset>('7d')
+    const [inventoryDateFrom, setInventoryDateFrom] = useState(defaultRange.from)
+    const [inventoryDateTo, setInventoryDateTo] = useState(defaultRange.to)
+    const [paymentDatePreset, setPaymentDatePreset] = useState<DatePreset>('7d')
+    const [paymentDateFrom, setPaymentDateFrom] = useState(defaultRange.from)
+    const [paymentDateTo, setPaymentDateTo] = useState(defaultRange.to)
+
+    const inventoryDateFromApi = inventoryDatePreset === 'custom'
+        ? toApiDateStart(inventoryDateFrom)
+        : toApiDateStart(getPresetDateRange(inventoryDatePreset as Exclude<DatePreset, 'custom'>).from)
+    const inventoryDateToApi = inventoryDatePreset === 'custom'
+        ? toApiDateEnd(inventoryDateTo)
+        : toApiDateEnd(getPresetDateRange(inventoryDatePreset as Exclude<DatePreset, 'custom'>).to)
+
+    const paymentDateFromApi = paymentDatePreset === 'custom'
+        ? toApiDateStart(paymentDateFrom)
+        : toApiDateStart(getPresetDateRange(paymentDatePreset as Exclude<DatePreset, 'custom'>).from)
+    const paymentDateToApi = paymentDatePreset === 'custom'
+        ? toApiDateEnd(paymentDateTo)
+        : toApiDateEnd(getPresetDateRange(paymentDatePreset as Exclude<DatePreset, 'custom'>).to)
+
+    useEffect(() => {
+        setIncomingInventoryPage(1)
+        setOutgoingInventoryPage(1)
+    }, [inventoryDateFromApi, inventoryDateToApi])
+
+    useEffect(() => {
+        setIncomingPaymentsPage(1)
+        setOutgoingPaymentsPage(1)
+    }, [paymentDateFromApi, paymentDateToApi])
+
+    const membersQuery = useApiQuery(
+        queryKeys.members.list(membersPage, tableLimit),
+        () => memberService.list({ page: membersPage, limit: tableLimit, includeDeleted: true }),
+        { placeholderData: (previousData) => previousData }
+    )
+
+    const equipmentQuery = useApiQuery(
+        queryKeys.equipment.list(equipmentPage, tableLimit),
+        () => equipmentService.list({ page: equipmentPage, limit: tableLimit, includeDeleted: false }),
+        { placeholderData: (previousData) => previousData }
+    )
+
+    const incomingInventoryQuery = useApiQuery(
+        queryKeys.inventory.list({ page: incomingInventoryPage, limit: tableLimit, movementType: 'INCOMING', dateFrom: inventoryDateFromApi, dateTo: inventoryDateToApi }),
+        () =>
+            inventoryService.list({
+                page: incomingInventoryPage,
+                limit: tableLimit,
+                includeDeleted: false,
+                movementType: 'INCOMING',
+                dateFrom: inventoryDateFromApi,
+                dateTo: inventoryDateToApi,
+            }),
+        { placeholderData: (previousData) => previousData }
+    )
+
+    const outgoingInventoryQuery = useApiQuery(
+        queryKeys.inventory.list({ page: outgoingInventoryPage, limit: tableLimit, movementType: 'OUTGOING', dateFrom: inventoryDateFromApi, dateTo: inventoryDateToApi }),
+        () =>
+            inventoryService.list({
+                page: outgoingInventoryPage,
+                limit: tableLimit,
+                includeDeleted: false,
+                movementType: 'OUTGOING',
+                dateFrom: inventoryDateFromApi,
+                dateTo: inventoryDateToApi,
+            }),
+        { placeholderData: (previousData) => previousData }
+    )
+
+    const incomingPaymentsQuery = useApiQuery(
+        queryKeys.payments.list({ page: 1, limit: paymentsFetchLimit, status: 'Paid', dateFrom: paymentDateFromApi, dateTo: paymentDateToApi }),
+        () =>
+            paymentService.list({
+                page: 1,
+                limit: paymentsFetchLimit,
+                status: 'Paid',
+                dateFrom: paymentDateFromApi,
+                dateTo: paymentDateToApi,
+            }),
+        { placeholderData: (previousData) => previousData }
+    )
+
+    const pendingPaymentsQuery = useApiQuery(
+        queryKeys.payments.list({ page: 1, limit: paymentsFetchLimit, status: 'Pending', dateFrom: paymentDateFromApi, dateTo: paymentDateToApi }),
+        () =>
+            paymentService.list({
+                page: 1,
+                limit: paymentsFetchLimit,
+                status: 'Pending',
+                dateFrom: paymentDateFromApi,
+                dateTo: paymentDateToApi,
+            }),
+        { placeholderData: (previousData) => previousData }
+    )
+
+    const overduePaymentsQuery = useApiQuery(
+        queryKeys.payments.list({ page: 1, limit: paymentsFetchLimit, status: 'Overdue', dateFrom: paymentDateFromApi, dateTo: paymentDateToApi }),
+        () =>
+            paymentService.list({
+                page: 1,
+                limit: paymentsFetchLimit,
+                status: 'Overdue',
+                dateFrom: paymentDateFromApi,
+                dateTo: paymentDateToApi,
+            }),
+        { placeholderData: (previousData) => previousData }
+    )
+
+    const members: MemberRow[] = (membersQuery.data?.data ?? []).map((member) => {
+        const name = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim() || member.email
+        return {
+            id: member.id,
+            name,
+            email: member.email,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+            status: member.deletedAt ? 'Inactive' : 'Active',
+            joinDate: new Date(member.createdAt).toISOString().slice(0, 10),
+        }
+    })
+
+    const equipment: EquipmentRow[] = (equipmentQuery.data?.data ?? []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        condition: item.condition,
+        managedBy: item.managedByUserId,
+        updatedAt: new Date(item.updatedAt).toISOString().slice(0, 10),
+    }))
+
+    const incomingInventory: InventoryRow[] = (incomingInventoryQuery.data?.data ?? []).map((item) => ({
+        id: item.id,
+        equipmentId: item.equipmentId,
+        quantity: item.quantity,
+        reason: item.reason,
+        occurredAt: new Date(item.occurredAt).toISOString().slice(0, 10),
+    }))
+
+    const outgoingInventory: InventoryRow[] = (outgoingInventoryQuery.data?.data ?? []).map((item) => ({
+        id: item.id,
+        equipmentId: item.equipmentId,
+        quantity: item.quantity,
+        reason: item.reason,
+        occurredAt: new Date(item.occurredAt).toISOString().slice(0, 10),
+    }))
+
+    const incomingPaymentsRaw: PaymentRow[] = (incomingPaymentsQuery.data?.data ?? []).map((payment) => ({
+        id: payment.id,
+        memberName: payment.memberName,
+        amount: payment.amount,
+        status: payment.status,
+        method: payment.method,
+        date: payment.date,
+    }))
+
+    const pendingPayments: PaymentRow[] = (pendingPaymentsQuery.data?.data ?? []).map((payment) => ({
+        id: payment.id,
+        memberName: payment.memberName,
+        amount: payment.amount,
+        status: payment.status,
+        method: payment.method,
+        date: payment.date,
+    }))
+
+    const overduePayments: PaymentRow[] = (overduePaymentsQuery.data?.data ?? []).map((payment) => ({
+        id: payment.id,
+        memberName: payment.memberName,
+        amount: payment.amount,
+        status: payment.status,
+        method: payment.method,
+        date: payment.date,
+    }))
+
+    const outgoingPaymentsRaw = useMemo(() => {
+        if (outgoingStatusFilter === 'Pending') {
+            return pendingPayments
+        }
+
+        if (outgoingStatusFilter === 'Overdue') {
+            return overduePayments
+        }
+
+        return [...pendingPayments, ...overduePayments]
+    }, [outgoingStatusFilter, pendingPayments, overduePayments])
+
+    const filteredMembers = useMemo(() => {
+        const normalized = memberSearch.trim().toLowerCase()
+        return members.filter((member) => {
+            const matchesSearch =
+                normalized.length === 0 ||
+                member.name.toLowerCase().includes(normalized) ||
+                member.email.toLowerCase().includes(normalized)
+            const matchesStatus = memberStatusFilter === 'all' || member.status === memberStatusFilter
+            return matchesSearch && matchesStatus
+        })
+    }, [members, memberSearch, memberStatusFilter])
+
+    const filteredEquipment = useMemo(() => {
+        const normalized = equipmentSearch.trim().toLowerCase()
+        return equipment.filter((item) => {
+            const matchesSearch =
+                normalized.length === 0 ||
+                item.name.toLowerCase().includes(normalized) ||
+                item.managedBy.toLowerCase().includes(normalized)
+            const matchesCondition = equipmentConditionFilter === 'all' || item.condition === equipmentConditionFilter
+            return matchesSearch && matchesCondition
+        })
+    }, [equipment, equipmentSearch, equipmentConditionFilter])
+
+    const filteredIncomingInventory = useMemo(() => {
+        const normalized = incomingInventorySearch.trim().toLowerCase()
+        return incomingInventory.filter((item) =>
+            normalized.length === 0 ||
+            item.equipmentId.toLowerCase().includes(normalized) ||
+            item.reason.toLowerCase().includes(normalized)
+        )
+    }, [incomingInventory, incomingInventorySearch])
+
+    const filteredOutgoingInventory = useMemo(() => {
+        const normalized = outgoingInventorySearch.trim().toLowerCase()
+        return outgoingInventory.filter((item) =>
+            normalized.length === 0 ||
+            item.equipmentId.toLowerCase().includes(normalized) ||
+            item.reason.toLowerCase().includes(normalized)
+        )
+    }, [outgoingInventory, outgoingInventorySearch])
+
+    const filteredIncomingPayments = useMemo(() => {
+        const normalized = ''
+        return incomingPaymentsRaw.filter((payment) => {
+            const matchesMethod = incomingMethodFilter === 'all' || payment.method === incomingMethodFilter
+            const matchesSearch =
+                normalized.length === 0 ||
+                payment.memberName.toLowerCase().includes(normalized) ||
+                payment.method.toLowerCase().includes(normalized)
+            return matchesMethod && matchesSearch
+        })
+    }, [incomingPaymentsRaw, incomingMethodFilter])
+
+    const filteredOutgoingPayments = useMemo(() => {
+        const normalized = ''
+        return outgoingPaymentsRaw.filter((payment) => {
+            const matchesMethod = outgoingMethodFilter === 'all' || payment.method === outgoingMethodFilter
+            const matchesSearch =
+                normalized.length === 0 ||
+                payment.memberName.toLowerCase().includes(normalized) ||
+                payment.method.toLowerCase().includes(normalized)
+            return matchesMethod && matchesSearch
+        })
+    }, [outgoingPaymentsRaw, outgoingMethodFilter])
+
+    const incomingPaymentsTotalPages = Math.max(Math.ceil(filteredIncomingPayments.length / tableLimit), 1)
+    const outgoingPaymentsTotalPages = Math.max(Math.ceil(filteredOutgoingPayments.length / tableLimit), 1)
+
+    const incomingPayments = filteredIncomingPayments.slice((incomingPaymentsPage - 1) * tableLimit, incomingPaymentsPage * tableLimit)
+    const outgoingPayments = filteredOutgoingPayments.slice((outgoingPaymentsPage - 1) * tableLimit, outgoingPaymentsPage * tableLimit)
+
+    const incomingInventoryQuantity = filteredIncomingInventory.reduce((sum, item) => sum + item.quantity, 0)
+    const outgoingInventoryQuantity = filteredOutgoingInventory.reduce((sum, item) => sum + item.quantity, 0)
+    const incomingPaymentsTotal = filteredIncomingPayments.reduce((sum, payment) => sum + payment.amount, 0)
+    const outgoingPaymentsTotal = filteredOutgoingPayments.reduce((sum, payment) => sum + payment.amount, 0)
+
+    const memberColumns: DataTableColumn<MemberRow>[] = [
         {
             key: 'member',
             header: 'Member',
@@ -60,18 +431,6 @@ export default function Dashboard() {
             ),
         },
         {
-            key: 'plan',
-            header: 'Plan',
-            cellClassName: 'py-3',
-            render: (member) => member.plan,
-        },
-        {
-            key: 'trainer',
-            header: 'Trainer',
-            cellClassName: 'py-3',
-            render: (member) => member.trainer,
-        },
-        {
             key: 'status',
             header: 'Status',
             cellClassName: 'py-3',
@@ -85,41 +444,169 @@ export default function Dashboard() {
         },
     ]
 
+    const equipmentColumns: DataTableColumn<EquipmentRow>[] = [
+        { key: 'name', header: 'Equipment', cellClassName: 'py-3', render: (item) => item.name },
+        { key: 'quantity', header: 'Quantity', cellClassName: 'py-3', render: (item) => item.quantity },
+        {
+            key: 'condition',
+            header: 'Condition',
+            cellClassName: 'py-3',
+            render: (item) => <StatusBadge kind="equipment-condition" value={item.condition} />,
+        },
+        {
+            key: 'updatedAt',
+            header: 'Updated At',
+            cellClassName: 'py-3 text-muted-foreground',
+            render: (item) => item.updatedAt,
+        },
+    ]
+
+    const inventoryColumns: DataTableColumn<InventoryRow>[] = [
+        { key: 'equipmentId', header: 'Equipment ID', cellClassName: 'py-3', render: (item) => item.equipmentId },
+        { key: 'quantity', header: 'Quantity', cellClassName: 'py-3', render: (item) => item.quantity },
+        { key: 'reason', header: 'Reason', cellClassName: 'py-3', render: (item) => item.reason },
+        {
+            key: 'occurredAt',
+            header: 'Occurred At',
+            cellClassName: 'py-3 text-muted-foreground',
+            render: (item) => item.occurredAt,
+        },
+    ]
+
+    const paymentColumns: DataTableColumn<PaymentRow>[] = [
+        { key: 'memberName', header: 'Member', cellClassName: 'py-3', render: (payment) => payment.memberName },
+        {
+            key: 'amount',
+            header: 'Amount',
+            cellClassName: 'py-3 font-medium',
+            render: (payment) => formatCurrency(payment.amount),
+        },
+        {
+            key: 'status',
+            header: 'Status',
+            cellClassName: 'py-3',
+            render: (payment) => <StatusBadge kind="payment-status" value={payment.status} />,
+        },
+        {
+            key: 'method',
+            header: 'Method',
+            cellClassName: 'py-3 text-muted-foreground',
+            render: (payment) => payment.method,
+        },
+    ]
+
     return (
         <div>
-            <PageHeader title="Dashboard" breadcrumb="GymHub / Dashboard" />
+            <PageHeader title="Admin Dashboard" breadcrumb="GymHub / Admin Dashboard" />
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Inventory Date Range</CardTitle>
+                        <CardDescription>Apply to incoming and outgoing inventory sections</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                        <Select
+                            value={inventoryDatePreset}
+                            onValueChange={(value) => {
+                                if (value === 'today' || value === '7d' || value === '30d' || value === 'custom') {
+                                    setInventoryDatePreset(value)
+                                    if (value !== 'custom') {
+                                        const next = getPresetDateRange(value)
+                                        setInventoryDateFrom(next.from)
+                                        setInventoryDateTo(next.to)
+                                    }
+                                }
+                            }}
+                        >
+                            <SelectTrigger className="w-44">
+                                <SelectValue placeholder="Date Range" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="today">Today</SelectItem>
+                                <SelectItem value="7d">Last 7 Days</SelectItem>
+                                <SelectItem value="30d">Last 30 Days</SelectItem>
+                                <SelectItem value="custom">Custom</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        {inventoryDatePreset === 'custom' ? (
+                            <>
+                                <Input type="date" value={inventoryDateFrom} onChange={(event) => setInventoryDateFrom(event.target.value)} />
+                                <Input type="date" value={inventoryDateTo} onChange={(event) => setInventoryDateTo(event.target.value)} />
+                            </>
+                        ) : null}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Payments Date Range</CardTitle>
+                        <CardDescription>Apply to incoming and uncollected payment sections</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                        <Select
+                            value={paymentDatePreset}
+                            onValueChange={(value) => {
+                                if (value === 'today' || value === '7d' || value === '30d' || value === 'custom') {
+                                    setPaymentDatePreset(value)
+                                    if (value !== 'custom') {
+                                        const next = getPresetDateRange(value)
+                                        setPaymentDateFrom(next.from)
+                                        setPaymentDateTo(next.to)
+                                    }
+                                }
+                            }}
+                        >
+                            <SelectTrigger className="w-44">
+                                <SelectValue placeholder="Date Range" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="today">Today</SelectItem>
+                                <SelectItem value="7d">Last 7 Days</SelectItem>
+                                <SelectItem value="30d">Last 30 Days</SelectItem>
+                                <SelectItem value="custom">Custom</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        {paymentDatePreset === 'custom' ? (
+                            <>
+                                <Input type="date" value={paymentDateFrom} onChange={(event) => setPaymentDateFrom(event.target.value)} />
+                                <Input type="date" value={paymentDateTo} onChange={(event) => setPaymentDateTo(event.target.value)} />
+                            </>
+                        ) : null}
+                    </CardContent>
+                </Card>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
                 <StatCard
-                    title="Total Members"
-                    value={totalMembers}
-                    delta="+12% from last month"
+                    title="Incoming Inventory"
+                    value={incomingInventoryQuantity}
+                    delta={`${incomingInventoryQuery.data?.total ?? 0} records`}
                     icon={Users}
                     iconBg="bg-emerald-100"
                     iconColor="text-emerald-600"
                 />
                 <StatCard
-                    title="Active Members"
-                    value={activeMembers}
-                    delta="+6% from last week"
-                    icon={Activity}
+                    title="Outgoing Inventory"
+                    value={outgoingInventoryQuantity}
+                    delta={`${outgoingInventoryQuery.data?.total ?? 0} records`}
+                    icon={Boxes}
                     iconBg="bg-cyan-100"
                     iconColor="text-cyan-600"
                 />
                 <StatCard
-                    title="Today's Revenue"
-                    value={`$${todayRevenue.toLocaleString()}`}
-                    delta="+9% from yesterday"
-                    icon={Wallet}
+                    title="Incoming Payments"
+                    value={formatCurrency(incomingPaymentsTotal)}
+                    delta={`${filteredIncomingPayments.length} paid records`}
+                    icon={ArrowDownLeft}
                     iconBg="bg-amber-100"
                     iconColor="text-amber-600"
                 />
                 <StatCard
-                    title="Classes Today"
-                    value={todayClasses.length}
-                    delta="2 classes full"
-                    deltaType="neutral"
-                    icon={CalendarCheck}
+                    title="Uncollected Payments"
+                    value={formatCurrency(outgoingPaymentsTotal)}
+                    delta={`${filteredOutgoingPayments.length} records`}
+                    icon={ArrowUpRight}
                     iconBg="bg-violet-100"
                     iconColor="text-violet-600"
                 />
@@ -128,58 +615,81 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-6">
                 <Card className="xl:col-span-7">
                     <CardHeader>
-                        <CardTitle>Membership Growth</CardTitle>
-                        <CardDescription>Monthly member count trend</CardDescription>
+                        <CardTitle>Incoming Inventory</CardTitle>
+                        <CardDescription>Latest incoming stock movements</CardDescription>
                     </CardHeader>
-                    <CardContent className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={monthlyStats}>
-                                <defs>
-                                    <linearGradient id="memberGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--color-chart-1)" stopOpacity={0.4} />
-                                        <stop offset="95%" stopColor="var(--color-chart-1)" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="month" />
-                                <YAxis />
-                                <Tooltip />
-                                <Area
-                                    type="monotone"
-                                    dataKey="members"
-                                    stroke="var(--color-chart-1)"
-                                    fill="url(#memberGradient)"
-                                    strokeWidth={2}
+                    <CardContent className="p-0">
+                        {incomingInventoryQuery.isLoading ? (
+                            <div className="py-10"><LoadingSpinner /></div>
+                        ) : incomingInventoryQuery.error ? (
+                            <div className="p-4"><ErrorState message={incomingInventoryQuery.error.userMessage} /></div>
+                        ) : (
+                            <>
+                                <div className="p-3 border-b">
+                                    <Input
+                                        placeholder="Search by equipment ID or reason"
+                                        value={incomingInventorySearch}
+                                        onChange={(event) => setIncomingInventorySearch(event.target.value)}
+                                    />
+                                </div>
+                                <DataTable
+                                    data={filteredIncomingInventory}
+                                    columns={inventoryColumns}
+                                    getRowKey={(item) => item.id}
+                                    emptyMessage="No incoming inventory records found."
                                 />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                                <PaginationControls
+                                    page={incomingInventoryPage}
+                                    totalPages={incomingInventoryQuery.data?.totalPages ?? 1}
+                                    onPrevious={() => setIncomingInventoryPage((prev) => Math.max(prev - 1, 1))}
+                                    onNext={() =>
+                                        setIncomingInventoryPage((prev) =>
+                                            Math.min(prev + 1, Math.max(incomingInventoryQuery.data?.totalPages ?? 1, 1))
+                                        )
+                                    }
+                                />
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 
                 <Card className="xl:col-span-5">
                     <CardHeader>
-                        <CardTitle>Plan Distribution</CardTitle>
-                        <CardDescription>Active subscriptions</CardDescription>
+                        <CardTitle>Outgoing Inventory</CardTitle>
+                        <CardDescription>Latest outgoing stock movements</CardDescription>
                     </CardHeader>
-                    <CardContent className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={planDistribution}
-                                    dataKey="value"
-                                    nameKey="name"
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius={95}
-                                    label={({ name, value }) => `${name}: ${value}%`}
-                                >
-                                    {planDistribution.map((entry) => (
-                                        <Cell key={entry.name} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                            </PieChart>
-                        </ResponsiveContainer>
+                    <CardContent className="p-0">
+                        {outgoingInventoryQuery.isLoading ? (
+                            <div className="py-10"><LoadingSpinner /></div>
+                        ) : outgoingInventoryQuery.error ? (
+                            <div className="p-4"><ErrorState message={outgoingInventoryQuery.error.userMessage} /></div>
+                        ) : (
+                            <>
+                                <div className="p-3 border-b">
+                                    <Input
+                                        placeholder="Search by equipment ID or reason"
+                                        value={outgoingInventorySearch}
+                                        onChange={(event) => setOutgoingInventorySearch(event.target.value)}
+                                    />
+                                </div>
+                                <DataTable
+                                    data={filteredOutgoingInventory}
+                                    columns={inventoryColumns}
+                                    getRowKey={(item) => item.id}
+                                    emptyMessage="No outgoing inventory records found."
+                                />
+                                <PaginationControls
+                                    page={outgoingInventoryPage}
+                                    totalPages={outgoingInventoryQuery.data?.totalPages ?? 1}
+                                    onPrevious={() => setOutgoingInventoryPage((prev) => Math.max(prev - 1, 1))}
+                                    onNext={() =>
+                                        setOutgoingInventoryPage((prev) =>
+                                            Math.min(prev + 1, Math.max(outgoingInventoryQuery.data?.totalPages ?? 1, 1))
+                                        )
+                                    }
+                                />
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -187,44 +697,129 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-6">
                 <Card className="xl:col-span-7">
                     <CardHeader>
-                        <CardTitle>Weekly Attendance</CardTitle>
-                        <CardDescription>Member check-ins by day</CardDescription>
+                        <CardTitle>Incoming Payments</CardTitle>
+                        <CardDescription>Paid payment records</CardDescription>
                     </CardHeader>
-                    <CardContent className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={weeklyAttendance}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="day" />
-                                <YAxis />
-                                <Tooltip />
-                                <Bar dataKey="count" fill="var(--color-chart-2)" radius={[8, 8, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <CardContent className="p-0">
+                        {incomingPaymentsQuery.isLoading ? (
+                            <div className="py-10"><LoadingSpinner /></div>
+                        ) : incomingPaymentsQuery.error ? (
+                            <div className="p-4"><ErrorState message={incomingPaymentsQuery.error.userMessage} /></div>
+                        ) : (
+                            <>
+                                <div className="p-3 border-b">
+                                    <Select
+                                        value={incomingMethodFilter}
+                                        onValueChange={(value) => {
+                                            if (value === 'all' || value === 'Credit Card' || value === 'Bank Transfer' || value === 'Cash') {
+                                                setIncomingMethodFilter(value)
+                                                setIncomingPaymentsPage(1)
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-48">
+                                            <SelectValue placeholder="Payment Method" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Methods</SelectItem>
+                                            <SelectItem value="Credit Card">Credit Card</SelectItem>
+                                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                            <SelectItem value="Cash">Cash</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <DataTable
+                                    data={incomingPayments}
+                                    columns={paymentColumns}
+                                    getRowKey={(item) => item.id}
+                                    emptyMessage="No incoming payment records found."
+                                />
+                                <PaginationControls
+                                    page={incomingPaymentsPage}
+                                    totalPages={incomingPaymentsTotalPages}
+                                    onPrevious={() => setIncomingPaymentsPage((prev) => Math.max(prev - 1, 1))}
+                                    onNext={() =>
+                                        setIncomingPaymentsPage((prev) =>
+                                            Math.min(prev + 1, incomingPaymentsTotalPages)
+                                        )
+                                    }
+                                />
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 
                 <Card className="xl:col-span-5">
                     <CardHeader>
-                        <CardTitle>Today's Classes</CardTitle>
-                        <CardDescription>{todayClasses.length} classes scheduled</CardDescription>
+                        <CardTitle>Uncollected Payments</CardTitle>
+                        <CardDescription>Pending and overdue payment records</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3 max-h-72 overflow-auto">
-                        {todayClasses.map((session) => (
-                            <div key={session.id} className="p-3 rounded-lg border bg-muted/30">
-                                <div className="flex items-center justify-between mb-2">
-                                    <p className="font-medium text-sm">{session.name}</p>
-                                    <Badge variant="secondary">{session.type}</Badge>
+                    <CardContent className="p-0">
+                        {pendingPaymentsQuery.isLoading || overduePaymentsQuery.isLoading ? (
+                            <div className="py-10"><LoadingSpinner /></div>
+                        ) : pendingPaymentsQuery.error ? (
+                            <div className="p-4"><ErrorState message={pendingPaymentsQuery.error.userMessage} /></div>
+                        ) : overduePaymentsQuery.error ? (
+                            <div className="p-4"><ErrorState message={overduePaymentsQuery.error.userMessage} /></div>
+                        ) : (
+                            <>
+                                <div className="p-3 border-b flex flex-col sm:flex-row gap-2 sm:items-center">
+                                    <Select
+                                        value={outgoingStatusFilter}
+                                        onValueChange={(value) => {
+                                            if (value === 'uncollected' || value === 'Pending' || value === 'Overdue') {
+                                                setOutgoingStatusFilter(value)
+                                                setOutgoingPaymentsPage(1)
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-52">
+                                            <SelectValue placeholder="Outgoing Definition" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="uncollected">Uncollected (Pending + Overdue)</SelectItem>
+                                            <SelectItem value="Pending">Pending Only</SelectItem>
+                                            <SelectItem value="Overdue">Overdue Only</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Select
+                                        value={outgoingMethodFilter}
+                                        onValueChange={(value) => {
+                                            if (value === 'all' || value === 'Credit Card' || value === 'Bank Transfer' || value === 'Cash') {
+                                                setOutgoingMethodFilter(value)
+                                                setOutgoingPaymentsPage(1)
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-48">
+                                            <SelectValue placeholder="Payment Method" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Methods</SelectItem>
+                                            <SelectItem value="Credit Card">Credit Card</SelectItem>
+                                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                            <SelectItem value="Cash">Cash</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span className="inline-flex items-center gap-1">
-                                        <Clock className="w-3 h-3" />
-                                        {session.startTime} - {session.endTime}
-                                    </span>
-                                    <span>{session.enrolled}/{session.capacity} enrolled</span>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">Trainer: {session.trainer}</p>
-                            </div>
-                        ))}
+                                <DataTable
+                                    data={outgoingPayments}
+                                    columns={paymentColumns}
+                                    getRowKey={(item) => item.id}
+                                    emptyMessage="No outgoing payment records found."
+                                />
+                                <PaginationControls
+                                    page={outgoingPaymentsPage}
+                                    totalPages={outgoingPaymentsTotalPages}
+                                    onPrevious={() => setOutgoingPaymentsPage((prev) => Math.max(prev - 1, 1))}
+                                    onNext={() =>
+                                        setOutgoingPaymentsPage((prev) =>
+                                            Math.min(prev + 1, outgoingPaymentsTotalPages)
+                                        )
+                                    }
+                                />
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -232,62 +827,114 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
                 <Card className="xl:col-span-8">
                     <CardHeader>
-                        <CardTitle>Recent Members</CardTitle>
-                        <CardDescription>Latest signups and activity</CardDescription>
+                        <CardTitle>Members List</CardTitle>
+                        <CardDescription>API-driven members table</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <DataTable
-                            data={recentMembers}
-                            columns={recentColumns}
-                            getRowKey={(member) => member.id}
-                        />
+                    <CardContent className="p-0">
+                        {membersQuery.isLoading ? (
+                            <div className="py-10"><LoadingSpinner /></div>
+                        ) : membersQuery.error ? (
+                            <div className="p-4"><ErrorState message={membersQuery.error.userMessage} /></div>
+                        ) : (
+                            <>
+                                <div className="p-3 border-b flex flex-col sm:flex-row gap-2 sm:items-center">
+                                    <Input
+                                        placeholder="Search member name or email"
+                                        value={memberSearch}
+                                        onChange={(event) => setMemberSearch(event.target.value)}
+                                    />
+                                    <Select
+                                        value={memberStatusFilter}
+                                        onValueChange={(value) => {
+                                            if (value === 'all' || value === 'Active' || value === 'Inactive') {
+                                                setMemberStatusFilter(value)
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-44">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Statuses</SelectItem>
+                                            <SelectItem value="Active">Active</SelectItem>
+                                            <SelectItem value="Inactive">Inactive</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <DataTable
+                                    data={filteredMembers}
+                                    columns={memberColumns}
+                                    getRowKey={(member) => member.id}
+                                />
+                                <PaginationControls
+                                    page={membersPage}
+                                    totalPages={membersQuery.data?.totalPages ?? 1}
+                                    onPrevious={() => setMembersPage((prev) => Math.max(prev - 1, 1))}
+                                    onNext={() =>
+                                        setMembersPage((prev) =>
+                                            Math.min(prev + 1, Math.max(membersQuery.data?.totalPages ?? 1, 1))
+                                        )
+                                    }
+                                />
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 
                 <Card className="xl:col-span-4">
                     <CardHeader>
-                        <CardTitle>Revenue Snapshot</CardTitle>
-                        <CardDescription>This month</CardDescription>
+                        <CardTitle>Equipment List</CardTitle>
+                        <CardDescription>API-driven equipment table</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-100">
-                            <p className="text-sm text-emerald-700 mb-1">Total Revenue</p>
-                            <p className="text-2xl font-bold text-emerald-700">$12,450</p>
-                            <p className="text-xs text-emerald-600 mt-1">+8.4% vs last month</p>
-                        </div>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground inline-flex items-center gap-1">
-                                    <CircleDollarSign className="w-4 h-4" /> Premium Plans
-                                </span>
-                                <span className="font-semibold">$6,850</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Standard Plans</span>
-                                <span className="font-semibold">$3,520</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Basic Plans</span>
-                                <span className="font-semibold">$2,080</span>
-                            </div>
-                        </div>
-                        <div className="h-40">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={monthlyStats.slice(-6)}>
-                                    <XAxis dataKey="month" hide />
-                                    <YAxis hide />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="revenue"
-                                        stroke="var(--color-chart-1)"
-                                        fill="var(--color-chart-1)"
-                                        fillOpacity={0.2}
+                    <CardContent className="p-0">
+                        {equipmentQuery.isLoading ? (
+                            <div className="py-10"><LoadingSpinner /></div>
+                        ) : equipmentQuery.error ? (
+                            <div className="p-4"><ErrorState message={equipmentQuery.error.userMessage} /></div>
+                        ) : (
+                            <>
+                                <div className="p-3 border-b flex flex-col gap-2">
+                                    <Input
+                                        placeholder="Search equipment name or manager"
+                                        value={equipmentSearch}
+                                        onChange={(event) => setEquipmentSearch(event.target.value)}
                                     />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
+                                    <Select
+                                        value={equipmentConditionFilter}
+                                        onValueChange={(value) => {
+                                            if (value === 'all' || value === 'GOOD' || value === 'FAIR' || value === 'POOR') {
+                                                setEquipmentConditionFilter(value)
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Condition" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Conditions</SelectItem>
+                                            <SelectItem value="GOOD">Good</SelectItem>
+                                            <SelectItem value="FAIR">Fair</SelectItem>
+                                            <SelectItem value="POOR">Poor</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <DataTable
+                                    data={filteredEquipment}
+                                    columns={equipmentColumns}
+                                    getRowKey={(item) => item.id}
+                                />
+                                <PaginationControls
+                                    page={equipmentPage}
+                                    totalPages={equipmentQuery.data?.totalPages ?? 1}
+                                    onPrevious={() => setEquipmentPage((prev) => Math.max(prev - 1, 1))}
+                                    onNext={() =>
+                                        setEquipmentPage((prev) =>
+                                            Math.min(prev + 1, Math.max(equipmentQuery.data?.totalPages ?? 1, 1))
+                                        )
+                                    }
+                                />
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             </div>

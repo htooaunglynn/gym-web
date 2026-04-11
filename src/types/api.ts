@@ -243,3 +243,27 @@ export interface InventoryMovementResponse {
     updatedAt: string
     deletedAt?: string | null
 }
+
+// ===== Payments Domain =====
+export interface PaymentFilterParams extends PaginationParams {
+    status?: 'Paid' | 'Pending' | 'Overdue'
+    method?: 'Credit Card' | 'Bank Transfer' | 'Cash'
+    dateFrom?: string
+    dateTo?: string
+}
+
+export interface PaymentResponse {
+    id: string
+    memberId: string
+    memberName: string
+    memberAvatar?: string
+    plan: 'Basic' | 'Standard' | 'Premium'
+    amount: number
+    date: string
+    dueDate: string
+    status: 'Paid' | 'Pending' | 'Overdue'
+    method: 'Credit Card' | 'Bank Transfer' | 'Cash'
+    createdAt: string
+    updatedAt: string
+    deletedAt?: string | null
+}

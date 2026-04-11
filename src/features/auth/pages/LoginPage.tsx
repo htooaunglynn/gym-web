@@ -1,20 +1,26 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useAuth } from '@/features/auth/hooks/useAuthContext'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import type { AppError } from '@/services'
 import { useToast } from '@/hooks/useToast'
 import { copy } from '@/constants/copy'
+import { getRoleDashboardPath } from '@/utils/role'
 
 export default function LoginPage() {
     const navigate = useNavigate()
-    const { login, isLoading } = useAuth()
+    const { login, isAuthenticated, isLoading, dashboardPath } = useAuth()
     const { addToast } = useToast()
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [errors, setErrors] = useState<Record<string, string>>({})
+
+    if (!isLoading && isAuthenticated && dashboardPath) {
+        return <Navigate to={dashboardPath} replace />
+    }
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {}
@@ -29,11 +35,11 @@ export default function LoginPage() {
         if (!validateForm()) return
 
         try {
-            await login(email, password)
+            const role = await login(email, password)
             addToast('Logged in successfully', 'success')
-            navigate('/admin/dashboard')
-        } catch (error: any) {
-            addToast(error?.userMessage || copy.auth.loginError, 'error')
+            navigate(getRoleDashboardPath(role), { replace: true })
+        } catch (error: unknown) {
+            addToast(getErrorMessage(error, copy.auth.loginError), 'error')
         }
     }
 
@@ -106,4 +112,16 @@ export default function LoginPage() {
             </Card>
         </div>
     )
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+    if (isAppError(error)) {
+        return error.userMessage
+    }
+
+    return fallback
+}
+
+function isAppError(error: unknown): error is AppError {
+    return typeof error === 'object' && error !== null && 'userMessage' in error
 }

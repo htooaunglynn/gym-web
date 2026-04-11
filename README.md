@@ -2,6 +2,15 @@
 
 Gym management dashboard built with React, TypeScript, Vite, Tailwind, and Recharts.
 
+## API Setup
+
+The frontend uses a Vite dev proxy in local development so browser requests avoid backend CORS preflight issues.
+
+- Copy `.env.example` to `.env.local` when you need to customize API settings.
+- `VITE_API_PROXY_TARGET` controls where the local `/api/*` proxy forwards requests. The default is `http://localhost:3000`.
+- `VITE_API_BASE_URL` is optional and overrides the API base URL directly. If this is unset in development, the app uses the local `/api` proxy.
+- Restart `npm run dev` after changing env values.
+
 ## Scripts
 
 - `npm run dev` starts local development.

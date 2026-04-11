@@ -1,5 +1,7 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? '/api' : 'http://localhost:3000')
+
 // API Error response type
 export interface ApiErrorResponse {
     statusCode: number
@@ -23,7 +25,7 @@ export class ApiClient {
     private client: AxiosInstance
     private token: string | null = null
 
-    constructor(baseURL: string = 'http://localhost:3000') {
+    constructor(baseURL: string = API_BASE_URL) {
         this.client = axios.create({
             baseURL,
             timeout: 10000,
