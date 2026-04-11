@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useApiQuery, queryKeys } from '@/hooks/useApi'
 import { memberService } from '@/services'
-import useSearch from '@/hooks/useSearch'
+import { useFilteredList } from '@/hooks/useFilteredList'
 
 export interface MemberListItem {
     id: string
@@ -61,24 +61,28 @@ export function useMembers({ planFilter, statusFilter }: UseMembersParams): UseM
         })
     }, [membersQuery.data])
 
-    const search = useSearch(members, (member, normalizedQuery) =>
-        member.name.toLowerCase().includes(normalizedQuery) ||
-        member.email.toLowerCase().includes(normalizedQuery) ||
-        member.phone.toLowerCase().includes(normalizedQuery)
-    )
-
-    const filteredMembers = useMemo(() => {
-        return search.filtered.filter((member) => {
-            const matchesPlan = planFilter === 'all' || member.plan === planFilter
-            const matchesStatus = statusFilter === 'all' || member.status === statusFilter
-            return matchesPlan && matchesStatus
-        })
-    }, [search.filtered, planFilter, statusFilter])
+    const filteredList = useFilteredList({
+        items: members,
+        searchPredicate: (member, normalizedQuery) =>
+            member.name.toLowerCase().includes(normalizedQuery) ||
+            member.email.toLowerCase().includes(normalizedQuery) ||
+            member.phone.toLowerCase().includes(normalizedQuery),
+        filters: [
+            {
+                isActive: planFilter !== 'all',
+                predicate: (member) => member.plan === planFilter,
+            },
+            {
+                isActive: statusFilter !== 'all',
+                predicate: (member) => member.status === statusFilter,
+            },
+        ],
+    })
 
     return {
-        query: search.query,
-        setQuery: search.setQuery,
-        filteredMembers,
+        query: filteredList.query,
+        setQuery: filteredList.setQuery,
+        filteredMembers: filteredList.filtered,
         isLoading: membersQuery.isLoading,
         errorMessage: membersQuery.error?.userMessage ?? null,
     }

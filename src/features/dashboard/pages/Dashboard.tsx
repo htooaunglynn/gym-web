@@ -18,6 +18,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApiQuery, queryKeys } from '@/hooks/useApi'
 import { equipmentService, inventoryService, memberService, paymentService } from '@/services'
+import { DashboardTableSection } from '@/features/dashboard/components/DashboardTableSection'
+import { DashboardDateRangeFilter } from '@/features/dashboard/components/DashboardDateRangeFilter'
 
 type MemberRow = {
     id: string
@@ -500,81 +502,41 @@ export default function Dashboard() {
             <PageHeader title="Admin Dashboard" breadcrumb="GymHub / Admin Dashboard" />
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Inventory Date Range</CardTitle>
-                        <CardDescription>Apply to incoming and outgoing inventory sections</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                        <Select
-                            value={inventoryDatePreset}
-                            onValueChange={(value) => {
-                                if (value === 'today' || value === '7d' || value === '30d' || value === 'custom') {
-                                    setInventoryDatePreset(value)
-                                    if (value !== 'custom') {
-                                        const next = getPresetDateRange(value)
-                                        setInventoryDateFrom(next.from)
-                                        setInventoryDateTo(next.to)
-                                    }
-                                }
-                            }}
-                        >
-                            <SelectTrigger className="w-44">
-                                <SelectValue placeholder="Date Range" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="today">Today</SelectItem>
-                                <SelectItem value="7d">Last 7 Days</SelectItem>
-                                <SelectItem value="30d">Last 30 Days</SelectItem>
-                                <SelectItem value="custom">Custom</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {inventoryDatePreset === 'custom' ? (
-                            <>
-                                <Input type="date" value={inventoryDateFrom} onChange={(event) => setInventoryDateFrom(event.target.value)} />
-                                <Input type="date" value={inventoryDateTo} onChange={(event) => setInventoryDateTo(event.target.value)} />
-                            </>
-                        ) : null}
-                    </CardContent>
-                </Card>
+                <DashboardDateRangeFilter
+                    title="Inventory Date Range"
+                    description="Apply to incoming and outgoing inventory sections"
+                    preset={inventoryDatePreset}
+                    from={inventoryDateFrom}
+                    to={inventoryDateTo}
+                    onPresetChange={(value) => {
+                        setInventoryDatePreset(value)
+                        if (value !== 'custom') {
+                            const next = getPresetDateRange(value)
+                            setInventoryDateFrom(next.from)
+                            setInventoryDateTo(next.to)
+                        }
+                    }}
+                    onFromChange={setInventoryDateFrom}
+                    onToChange={setInventoryDateTo}
+                />
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Payments Date Range</CardTitle>
-                        <CardDescription>Apply to incoming and uncollected payment sections</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                        <Select
-                            value={paymentDatePreset}
-                            onValueChange={(value) => {
-                                if (value === 'today' || value === '7d' || value === '30d' || value === 'custom') {
-                                    setPaymentDatePreset(value)
-                                    if (value !== 'custom') {
-                                        const next = getPresetDateRange(value)
-                                        setPaymentDateFrom(next.from)
-                                        setPaymentDateTo(next.to)
-                                    }
-                                }
-                            }}
-                        >
-                            <SelectTrigger className="w-44">
-                                <SelectValue placeholder="Date Range" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="today">Today</SelectItem>
-                                <SelectItem value="7d">Last 7 Days</SelectItem>
-                                <SelectItem value="30d">Last 30 Days</SelectItem>
-                                <SelectItem value="custom">Custom</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {paymentDatePreset === 'custom' ? (
-                            <>
-                                <Input type="date" value={paymentDateFrom} onChange={(event) => setPaymentDateFrom(event.target.value)} />
-                                <Input type="date" value={paymentDateTo} onChange={(event) => setPaymentDateTo(event.target.value)} />
-                            </>
-                        ) : null}
-                    </CardContent>
-                </Card>
+                <DashboardDateRangeFilter
+                    title="Payments Date Range"
+                    description="Apply to incoming and uncollected payment sections"
+                    preset={paymentDatePreset}
+                    from={paymentDateFrom}
+                    to={paymentDateTo}
+                    onPresetChange={(value) => {
+                        setPaymentDatePreset(value)
+                        if (value !== 'custom') {
+                            const next = getPresetDateRange(value)
+                            setPaymentDateFrom(next.from)
+                            setPaymentDateTo(next.to)
+                        }
+                    }}
+                    onFromChange={setPaymentDateFrom}
+                    onToChange={setPaymentDateTo}
+                />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
@@ -613,215 +575,169 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-6">
-                <Card className="xl:col-span-7">
-                    <CardHeader>
-                        <CardTitle>Incoming Inventory</CardTitle>
-                        <CardDescription>Latest incoming stock movements</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        {incomingInventoryQuery.isLoading ? (
-                            <div className="py-10"><LoadingSpinner /></div>
-                        ) : incomingInventoryQuery.error ? (
-                            <div className="p-4"><ErrorState message={incomingInventoryQuery.error.userMessage} /></div>
-                        ) : (
-                            <>
-                                <div className="p-3 border-b">
-                                    <Input
-                                        placeholder="Search by equipment ID or reason"
-                                        value={incomingInventorySearch}
-                                        onChange={(event) => setIncomingInventorySearch(event.target.value)}
-                                    />
-                                </div>
-                                <DataTable
-                                    data={filteredIncomingInventory}
-                                    columns={inventoryColumns}
-                                    getRowKey={(item) => item.id}
-                                    emptyMessage="No incoming inventory records found."
-                                />
-                                <PaginationControls
-                                    page={incomingInventoryPage}
-                                    totalPages={incomingInventoryQuery.data?.totalPages ?? 1}
-                                    onPrevious={() => setIncomingInventoryPage((prev) => Math.max(prev - 1, 1))}
-                                    onNext={() =>
-                                        setIncomingInventoryPage((prev) =>
-                                            Math.min(prev + 1, Math.max(incomingInventoryQuery.data?.totalPages ?? 1, 1))
-                                        )
-                                    }
-                                />
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                <DashboardTableSection
+                    title="Incoming Inventory"
+                    description="Latest incoming stock movements"
+                    cardClassName="xl:col-span-7"
+                    controls={(
+                        <div className="p-3 border-b">
+                            <Input
+                                placeholder="Search by equipment ID or reason"
+                                value={incomingInventorySearch}
+                                onChange={(event) => setIncomingInventorySearch(event.target.value)}
+                            />
+                        </div>
+                    )}
+                    isLoading={incomingInventoryQuery.isLoading}
+                    errorMessage={incomingInventoryQuery.error?.userMessage}
+                    data={filteredIncomingInventory}
+                    columns={inventoryColumns}
+                    getRowKey={(item) => item.id}
+                    emptyMessage="No incoming inventory records found."
+                    page={incomingInventoryPage}
+                    totalPages={incomingInventoryQuery.data?.totalPages ?? 1}
+                    onPrevious={() => setIncomingInventoryPage((prev) => Math.max(prev - 1, 1))}
+                    onNext={() =>
+                        setIncomingInventoryPage((prev) =>
+                            Math.min(prev + 1, Math.max(incomingInventoryQuery.data?.totalPages ?? 1, 1))
+                        )
+                    }
+                />
 
-                <Card className="xl:col-span-5">
-                    <CardHeader>
-                        <CardTitle>Outgoing Inventory</CardTitle>
-                        <CardDescription>Latest outgoing stock movements</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        {outgoingInventoryQuery.isLoading ? (
-                            <div className="py-10"><LoadingSpinner /></div>
-                        ) : outgoingInventoryQuery.error ? (
-                            <div className="p-4"><ErrorState message={outgoingInventoryQuery.error.userMessage} /></div>
-                        ) : (
-                            <>
-                                <div className="p-3 border-b">
-                                    <Input
-                                        placeholder="Search by equipment ID or reason"
-                                        value={outgoingInventorySearch}
-                                        onChange={(event) => setOutgoingInventorySearch(event.target.value)}
-                                    />
-                                </div>
-                                <DataTable
-                                    data={filteredOutgoingInventory}
-                                    columns={inventoryColumns}
-                                    getRowKey={(item) => item.id}
-                                    emptyMessage="No outgoing inventory records found."
-                                />
-                                <PaginationControls
-                                    page={outgoingInventoryPage}
-                                    totalPages={outgoingInventoryQuery.data?.totalPages ?? 1}
-                                    onPrevious={() => setOutgoingInventoryPage((prev) => Math.max(prev - 1, 1))}
-                                    onNext={() =>
-                                        setOutgoingInventoryPage((prev) =>
-                                            Math.min(prev + 1, Math.max(outgoingInventoryQuery.data?.totalPages ?? 1, 1))
-                                        )
-                                    }
-                                />
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                <DashboardTableSection
+                    title="Outgoing Inventory"
+                    description="Latest outgoing stock movements"
+                    cardClassName="xl:col-span-5"
+                    controls={(
+                        <div className="p-3 border-b">
+                            <Input
+                                placeholder="Search by equipment ID or reason"
+                                value={outgoingInventorySearch}
+                                onChange={(event) => setOutgoingInventorySearch(event.target.value)}
+                            />
+                        </div>
+                    )}
+                    isLoading={outgoingInventoryQuery.isLoading}
+                    errorMessage={outgoingInventoryQuery.error?.userMessage}
+                    data={filteredOutgoingInventory}
+                    columns={inventoryColumns}
+                    getRowKey={(item) => item.id}
+                    emptyMessage="No outgoing inventory records found."
+                    page={outgoingInventoryPage}
+                    totalPages={outgoingInventoryQuery.data?.totalPages ?? 1}
+                    onPrevious={() => setOutgoingInventoryPage((prev) => Math.max(prev - 1, 1))}
+                    onNext={() =>
+                        setOutgoingInventoryPage((prev) =>
+                            Math.min(prev + 1, Math.max(outgoingInventoryQuery.data?.totalPages ?? 1, 1))
+                        )
+                    }
+                />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-6">
-                <Card className="xl:col-span-7">
-                    <CardHeader>
-                        <CardTitle>Incoming Payments</CardTitle>
-                        <CardDescription>Paid payment records</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        {incomingPaymentsQuery.isLoading ? (
-                            <div className="py-10"><LoadingSpinner /></div>
-                        ) : incomingPaymentsQuery.error ? (
-                            <div className="p-4"><ErrorState message={incomingPaymentsQuery.error.userMessage} /></div>
-                        ) : (
-                            <>
-                                <div className="p-3 border-b">
-                                    <Select
-                                        value={incomingMethodFilter}
-                                        onValueChange={(value) => {
-                                            if (value === 'all' || value === 'Credit Card' || value === 'Bank Transfer' || value === 'Cash') {
-                                                setIncomingMethodFilter(value)
-                                                setIncomingPaymentsPage(1)
-                                            }
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-48">
-                                            <SelectValue placeholder="Payment Method" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Methods</SelectItem>
-                                            <SelectItem value="Credit Card">Credit Card</SelectItem>
-                                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                                            <SelectItem value="Cash">Cash</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <DataTable
-                                    data={incomingPayments}
-                                    columns={paymentColumns}
-                                    getRowKey={(item) => item.id}
-                                    emptyMessage="No incoming payment records found."
-                                />
-                                <PaginationControls
-                                    page={incomingPaymentsPage}
-                                    totalPages={incomingPaymentsTotalPages}
-                                    onPrevious={() => setIncomingPaymentsPage((prev) => Math.max(prev - 1, 1))}
-                                    onNext={() =>
-                                        setIncomingPaymentsPage((prev) =>
-                                            Math.min(prev + 1, incomingPaymentsTotalPages)
-                                        )
+                <DashboardTableSection
+                    title="Incoming Payments"
+                    description="Paid payment records"
+                    cardClassName="xl:col-span-7"
+                    controls={(
+                        <div className="p-3 border-b">
+                            <Select
+                                value={incomingMethodFilter}
+                                onValueChange={(value) => {
+                                    if (value === 'all' || value === 'Credit Card' || value === 'Bank Transfer' || value === 'Cash') {
+                                        setIncomingMethodFilter(value)
+                                        setIncomingPaymentsPage(1)
                                     }
-                                />
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                                }}
+                            >
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="Payment Method" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Methods</SelectItem>
+                                    <SelectItem value="Credit Card">Credit Card</SelectItem>
+                                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                    <SelectItem value="Cash">Cash</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    isLoading={incomingPaymentsQuery.isLoading}
+                    errorMessage={incomingPaymentsQuery.error?.userMessage}
+                    data={incomingPayments}
+                    columns={paymentColumns}
+                    getRowKey={(item) => item.id}
+                    emptyMessage="No incoming payment records found."
+                    page={incomingPaymentsPage}
+                    totalPages={incomingPaymentsTotalPages}
+                    onPrevious={() => setIncomingPaymentsPage((prev) => Math.max(prev - 1, 1))}
+                    onNext={() =>
+                        setIncomingPaymentsPage((prev) =>
+                            Math.min(prev + 1, incomingPaymentsTotalPages)
+                        )
+                    }
+                />
 
-                <Card className="xl:col-span-5">
-                    <CardHeader>
-                        <CardTitle>Uncollected Payments</CardTitle>
-                        <CardDescription>Pending and overdue payment records</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        {pendingPaymentsQuery.isLoading || overduePaymentsQuery.isLoading ? (
-                            <div className="py-10"><LoadingSpinner /></div>
-                        ) : pendingPaymentsQuery.error ? (
-                            <div className="p-4"><ErrorState message={pendingPaymentsQuery.error.userMessage} /></div>
-                        ) : overduePaymentsQuery.error ? (
-                            <div className="p-4"><ErrorState message={overduePaymentsQuery.error.userMessage} /></div>
-                        ) : (
-                            <>
-                                <div className="p-3 border-b flex flex-col sm:flex-row gap-2 sm:items-center">
-                                    <Select
-                                        value={outgoingStatusFilter}
-                                        onValueChange={(value) => {
-                                            if (value === 'uncollected' || value === 'Pending' || value === 'Overdue') {
-                                                setOutgoingStatusFilter(value)
-                                                setOutgoingPaymentsPage(1)
-                                            }
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-52">
-                                            <SelectValue placeholder="Outgoing Definition" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="uncollected">Uncollected (Pending + Overdue)</SelectItem>
-                                            <SelectItem value="Pending">Pending Only</SelectItem>
-                                            <SelectItem value="Overdue">Overdue Only</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <Select
-                                        value={outgoingMethodFilter}
-                                        onValueChange={(value) => {
-                                            if (value === 'all' || value === 'Credit Card' || value === 'Bank Transfer' || value === 'Cash') {
-                                                setOutgoingMethodFilter(value)
-                                                setOutgoingPaymentsPage(1)
-                                            }
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-48">
-                                            <SelectValue placeholder="Payment Method" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Methods</SelectItem>
-                                            <SelectItem value="Credit Card">Credit Card</SelectItem>
-                                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                                            <SelectItem value="Cash">Cash</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <DataTable
-                                    data={outgoingPayments}
-                                    columns={paymentColumns}
-                                    getRowKey={(item) => item.id}
-                                    emptyMessage="No outgoing payment records found."
-                                />
-                                <PaginationControls
-                                    page={outgoingPaymentsPage}
-                                    totalPages={outgoingPaymentsTotalPages}
-                                    onPrevious={() => setOutgoingPaymentsPage((prev) => Math.max(prev - 1, 1))}
-                                    onNext={() =>
-                                        setOutgoingPaymentsPage((prev) =>
-                                            Math.min(prev + 1, outgoingPaymentsTotalPages)
-                                        )
+                <DashboardTableSection
+                    title="Uncollected Payments"
+                    description="Pending and overdue payment records"
+                    cardClassName="xl:col-span-5"
+                    controls={(
+                        <div className="p-3 border-b flex flex-col sm:flex-row gap-2 sm:items-center">
+                            <Select
+                                value={outgoingStatusFilter}
+                                onValueChange={(value) => {
+                                    if (value === 'uncollected' || value === 'Pending' || value === 'Overdue') {
+                                        setOutgoingStatusFilter(value)
+                                        setOutgoingPaymentsPage(1)
                                     }
-                                />
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                                }}
+                            >
+                                <SelectTrigger className="w-52">
+                                    <SelectValue placeholder="Outgoing Definition" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="uncollected">Uncollected (Pending + Overdue)</SelectItem>
+                                    <SelectItem value="Pending">Pending Only</SelectItem>
+                                    <SelectItem value="Overdue">Overdue Only</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select
+                                value={outgoingMethodFilter}
+                                onValueChange={(value) => {
+                                    if (value === 'all' || value === 'Credit Card' || value === 'Bank Transfer' || value === 'Cash') {
+                                        setOutgoingMethodFilter(value)
+                                        setOutgoingPaymentsPage(1)
+                                    }
+                                }}
+                            >
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="Payment Method" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Methods</SelectItem>
+                                    <SelectItem value="Credit Card">Credit Card</SelectItem>
+                                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                    <SelectItem value="Cash">Cash</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    isLoading={pendingPaymentsQuery.isLoading || overduePaymentsQuery.isLoading}
+                    errorMessage={pendingPaymentsQuery.error?.userMessage ?? overduePaymentsQuery.error?.userMessage}
+                    data={outgoingPayments}
+                    columns={paymentColumns}
+                    getRowKey={(item) => item.id}
+                    emptyMessage="No outgoing payment records found."
+                    page={outgoingPaymentsPage}
+                    totalPages={outgoingPaymentsTotalPages}
+                    onPrevious={() => setOutgoingPaymentsPage((prev) => Math.max(prev - 1, 1))}
+                    onNext={() =>
+                        setOutgoingPaymentsPage((prev) =>
+                            Math.min(prev + 1, outgoingPaymentsTotalPages)
+                        )
+                    }
+                />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">

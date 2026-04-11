@@ -6,10 +6,21 @@ import type {
     PaginatedResponse,
     PaginationParams,
 } from '@/types/api'
+import { PAGINATION_LIMITS } from '@/config/pagination'
 
 export const equipmentService = {
-    async list(params: PaginationParams = { page: 1, limit: 10 }): Promise<PaginatedResponse<EquipmentResponse>> {
-        return apiClient.get('/equipment', { params })
+    async list(params: PaginationParams = { page: 1, limit: PAGINATION_LIMITS.defaultList }): Promise<PaginatedResponse<EquipmentResponse>> {
+        const page = params.page ?? 1
+        const limit = Math.min(params.limit ?? PAGINATION_LIMITS.defaultList, PAGINATION_LIMITS.equipment)
+        const includeDeleted = params.includeDeleted
+
+        return apiClient.get('/equipment', {
+            params: {
+                page,
+                limit,
+                ...(typeof includeDeleted === 'boolean' ? { includeDeleted } : {}),
+            },
+        })
     },
 
     async getById(id: string): Promise<EquipmentResponse> {

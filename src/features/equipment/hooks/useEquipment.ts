@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useApiQuery, queryKeys } from '@/hooks/useApi'
 import { equipmentService } from '@/services'
-import useSearch from '@/hooks/useSearch'
+import { useFilteredList } from '@/hooks/useFilteredList'
 import type { EquipmentResponse } from '@/types/api'
 
 export interface EquipmentListItem {
@@ -55,20 +55,24 @@ export function useEquipment({ page, limit, conditionFilter }: UseEquipmentParam
         return (equipmentQuery.data?.data ?? []).map(toEquipmentListItem)
     }, [equipmentQuery.data])
 
-    const search = useSearch(equipment, (item, normalizedQuery) =>
-        item.name.toLowerCase().includes(normalizedQuery) ||
-        item.description.toLowerCase().includes(normalizedQuery) ||
-        item.managedBy.toLowerCase().includes(normalizedQuery)
-    )
-
-    const filteredEquipment = useMemo(() => {
-        return search.filtered.filter((item) => conditionFilter === 'all' || item.condition === conditionFilter)
-    }, [search.filtered, conditionFilter])
+    const filteredList = useFilteredList({
+        items: equipment,
+        searchPredicate: (item, normalizedQuery) =>
+            item.name.toLowerCase().includes(normalizedQuery) ||
+            item.description.toLowerCase().includes(normalizedQuery) ||
+            item.managedBy.toLowerCase().includes(normalizedQuery),
+        filters: [
+            {
+                isActive: conditionFilter !== 'all',
+                predicate: (item) => item.condition === conditionFilter,
+            },
+        ],
+    })
 
     return {
-        query: search.query,
-        setQuery: search.setQuery,
-        filteredEquipment,
+        query: filteredList.query,
+        setQuery: filteredList.setQuery,
+        filteredEquipment: filteredList.filtered,
         total: equipmentQuery.data?.total ?? 0,
         totalPages: equipmentQuery.data?.totalPages ?? 1,
         isLoading: equipmentQuery.isLoading,

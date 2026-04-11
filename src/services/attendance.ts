@@ -7,32 +7,14 @@ import type {
     AttendanceResponse,
     PaginatedResponse,
 } from '@/types/api'
-
-const MAX_LIST_LIMIT = 50
-
-function normalizeAttendanceListResponse(
-    response: PaginatedResponse<AttendanceResponse> | AttendanceResponse[],
-    page: number,
-    limit: number
-): PaginatedResponse<AttendanceResponse> {
-    if (Array.isArray(response)) {
-        return {
-            data: response,
-            total: response.length,
-            page,
-            limit,
-            totalPages: response.length === 0 ? 0 : 1,
-        }
-    }
-
-    return response
-}
+import { PAGINATION_LIMITS } from '@/config/pagination'
+import { normalizeListResponse } from '@/services/utils/normalization'
 
 export const attendanceService = {
-    async list(params: AttendanceFilterParams = { page: 1, limit: 10 }): Promise<PaginatedResponse<AttendanceResponse>> {
+    async list(params: AttendanceFilterParams = { page: 1, limit: PAGINATION_LIMITS.defaultList }): Promise<PaginatedResponse<AttendanceResponse>> {
         const {
             page: rawPage = 1,
-            limit: rawLimit = 10,
+            limit: rawLimit = PAGINATION_LIMITS.defaultList,
             includeDeleted,
             memberId,
             eventType,
@@ -43,7 +25,7 @@ export const attendanceService = {
         } = params
 
         const page = rawPage
-        const limit = Math.min(rawLimit, MAX_LIST_LIMIT)
+        const limit = Math.min(rawLimit, PAGINATION_LIMITS.attendance)
 
         const response = await apiClient.get<PaginatedResponse<AttendanceResponse> | AttendanceResponse[]>('/attendance', {
             params: {
@@ -59,7 +41,7 @@ export const attendanceService = {
             },
         })
 
-        return normalizeAttendanceListResponse(response, page, limit)
+        return normalizeListResponse(response, page, limit)
     },
 
     async getById(id: string): Promise<AttendanceResponse> {

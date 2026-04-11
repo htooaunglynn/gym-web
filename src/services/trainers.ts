@@ -6,37 +6,19 @@ import type {
     PaginatedResponse,
     PaginationParams,
 } from '@/types/api'
-
-const MAX_LIST_LIMIT = 50
-
-function normalizeTrainerListResponse(
-    response: PaginatedResponse<TrainerResponse> | TrainerResponse[],
-    page: number,
-    limit: number
-): PaginatedResponse<TrainerResponse> {
-    if (Array.isArray(response)) {
-        return {
-            data: response,
-            total: response.length,
-            page,
-            limit,
-            totalPages: response.length === 0 ? 0 : 1,
-        }
-    }
-
-    return response
-}
+import { PAGINATION_LIMITS } from '@/config/pagination'
+import { normalizeListResponse } from '@/services/utils/normalization'
 
 export const trainerService = {
     async list(
         params: PaginationParams & { includeMembers?: boolean } = {
             page: 1,
-            limit: 10,
+            limit: PAGINATION_LIMITS.defaultList,
             includeMembers: false,
         }
     ): Promise<PaginatedResponse<TrainerResponse>> {
         const page = params.page ?? 1
-        const limit = Math.min(params.limit ?? 10, MAX_LIST_LIMIT)
+        const limit = Math.min(params.limit ?? PAGINATION_LIMITS.defaultList, PAGINATION_LIMITS.trainers)
         const includeDeleted = params.includeDeleted
         const includeMembers = params.includeMembers
 
@@ -49,7 +31,7 @@ export const trainerService = {
             },
         })
 
-        return normalizeTrainerListResponse(response, page, limit)
+        return normalizeListResponse(response, page, limit)
     },
 
     async getById(id: string, includeMembers: boolean = false): Promise<TrainerResponse> {

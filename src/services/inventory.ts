@@ -7,10 +7,20 @@ import type {
     InventoryMovementResponse,
     PaginatedResponse,
 } from '@/types/api'
+import { PAGINATION_LIMITS } from '@/config/pagination'
 
 export const inventoryService = {
-    async list(params: MovementFilterParams = { page: 1, limit: 10 }): Promise<PaginatedResponse<InventoryMovementResponse>> {
-        return apiClient.get('/inventory-movements', { params })
+    async list(params: MovementFilterParams = { page: 1, limit: PAGINATION_LIMITS.defaultList }): Promise<PaginatedResponse<InventoryMovementResponse>> {
+        const page = params.page ?? 1
+        const limit = Math.min(params.limit ?? PAGINATION_LIMITS.defaultList, PAGINATION_LIMITS.inventoryMovements)
+
+        return apiClient.get('/inventory-movements', {
+            params: {
+                ...params,
+                page,
+                limit,
+            },
+        })
     },
 
     async getById(id: string): Promise<InventoryMovementResponse> {
