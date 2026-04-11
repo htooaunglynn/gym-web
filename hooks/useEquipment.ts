@@ -5,17 +5,17 @@ import { queryKeys } from "@/hooks/useApi";
 import * as equipmentService from "@/services/equipment";
 import { ListEquipmentParams } from "@/services/equipment";
 import { CreateEquipmentPayload, UpdateEquipmentPayload, Equipment } from "@/types/entities";
-import { AppError } from "@/types/api";
+import { AppError, PaginatedResponse } from "@/types/api";
 
 export function useEquipment(params?: ListEquipmentParams) {
-    return useQuery({
+    return useQuery<PaginatedResponse<Equipment>, AppError>({
         queryKey: queryKeys.equipment.list(params as Record<string, unknown>),
         queryFn: () => equipmentService.getEquipment(params),
     });
 }
 
 export function useEquipmentItem(id: string) {
-    return useQuery({
+    return useQuery<Equipment, AppError>({
         queryKey: queryKeys.equipment.detail(id),
         queryFn: () => equipmentService.getEquipmentById(id),
         enabled: !!id,

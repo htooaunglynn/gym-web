@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
 
     // If trying to access auth routes and already authenticated, redirect to dashboard
     if (authRoutes.includes(pathname) && token) {
-        return NextResponse.redirect(new URL("/", request.url));
+        return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
     // If trying to access protected routes without token, redirect to login

@@ -10,17 +10,17 @@ import {
     CreateOutgoingMovementPayload,
     CreateAdjustmentMovementPayload,
 } from "@/types/entities";
-import { AppError } from "@/types/api";
+import { AppError, PaginatedResponse } from "@/types/api";
 
 export function useInventoryMovements(params?: ListInventoryParams) {
-    return useQuery({
+    return useQuery<PaginatedResponse<InventoryMovement>, AppError>({
         queryKey: queryKeys.inventory.list(params as Record<string, unknown>),
         queryFn: () => inventoryService.getInventoryMovements(params),
     });
 }
 
 export function useInventoryMovement(id: string) {
-    return useQuery({
+    return useQuery<InventoryMovement, AppError>({
         queryKey: queryKeys.inventory.detail(id),
         queryFn: () => inventoryService.getInventoryMovementById(id),
         enabled: !!id,

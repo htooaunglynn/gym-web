@@ -4,18 +4,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/useApi";
 import * as memberService from "@/services/members";
 import { ListMembersParams } from "@/services/members";
-import { CreateMemberPayload, UpdateMemberPayload } from "@/types/entities";
-import { AppError } from "@/types/api";
+import { CreateMemberPayload, UpdateMemberPayload, Member } from "@/types/entities";
+import { AppError, PaginatedResponse } from "@/types/api";
 
 export function useMembers(params?: ListMembersParams) {
-    return useQuery({
+    return useQuery<PaginatedResponse<Member>, AppError>({
         queryKey: queryKeys.members.list(params as Record<string, unknown>),
         queryFn: () => memberService.getMembers(params),
     });
 }
 
 export function useMember(id: string) {
-    return useQuery({
+    return useQuery<Member, AppError>({
         queryKey: queryKeys.members.detail(id),
         queryFn: () => memberService.getMemberById(id),
         enabled: !!id,

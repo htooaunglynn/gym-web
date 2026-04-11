@@ -1,10 +1,12 @@
 import React from "react";
+import Image from "next/image";
 
-interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
+interface AvatarProps {
     src?: string;
     alt?: string;
     initials?: string;
     size?: "sm" | "md" | "lg";
+    className?: string;
 }
 
 export function Avatar({
@@ -13,7 +15,6 @@ export function Avatar({
     initials,
     size = "md",
     className = "",
-    ...props
 }: AvatarProps) {
     const sizeClasses = {
         sm: "w-8 h-8 text-label-md",
@@ -21,13 +22,20 @@ export function Avatar({
         lg: "w-12 h-12 text-title-md",
     };
 
+    const pixelSize = {
+        sm: 32,
+        md: 40,
+        lg: 48,
+    } as const;
+
     if (src) {
         return (
-            <img
+            <Image
                 src={src}
                 alt={alt || "Avatar"}
+                width={pixelSize[size]}
+                height={pixelSize[size]}
                 className={`rounded-full object-cover ${sizeClasses[size]} ${className}`}
-                {...props}
             />
         );
     }
@@ -43,7 +51,7 @@ export function Avatar({
         ${sizeClasses[size]}
         ${className}
       `}
-            {...props}
+            aria-label={alt || "Avatar"}
         >
             {initials}
         </div>

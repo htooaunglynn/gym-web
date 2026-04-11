@@ -1,4 +1,5 @@
 import React from "react";
+import { useId } from "react";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
     label?: string;
@@ -13,14 +14,25 @@ export function Input({
     className = "",
     ...props
 }: InputProps) {
+    const generatedId = useId();
+    const inputId = props.id ?? generatedId;
+    const describedBy = error
+        ? `${inputId}-error`
+        : helperText
+            ? `${inputId}-helper`
+            : undefined;
+
     return (
         <div className="w-full">
             {label && (
-                <label className="block text-label-md font-semibold text-on-surface mb-2">
+                <label htmlFor={inputId} className="block text-label-md font-semibold text-on-surface mb-2">
                     {label}
                 </label>
             )}
             <input
+                id={inputId}
+                aria-invalid={!!error}
+                aria-describedby={describedBy}
                 className={`
           w-full px-4 py-2 rounded-md
           bg-surface-container-highest/40
@@ -35,10 +47,14 @@ export function Input({
                 {...props}
             />
             {error && (
-                <p className="text-error text-label-md mt-1">{error}</p>
+                <p id={`${inputId}-error`} className="text-error text-label-md mt-1" role="alert" aria-live="polite">
+                    {error}
+                </p>
             )}
             {helperText && !error && (
-                <p className="text-on-surface-variant text-label-md mt-1">{helperText}</p>
+                <p id={`${inputId}-helper`} className="text-on-surface-variant text-label-md mt-1">
+                    {helperText}
+                </p>
             )}
         </div>
     );

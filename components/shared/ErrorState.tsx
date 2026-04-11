@@ -17,6 +17,8 @@ export function ErrorState({
     return (
         <div
             className={`flex flex-col items-center justify-center gap-4 py-12 px-6 text-center ${className}`}
+            role="alert"
+            aria-live="assertive"
             {...props}
         >
             <svg
@@ -24,6 +26,7 @@ export function ErrorState({
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
             >
                 <path
                     strokeLinecap="round"

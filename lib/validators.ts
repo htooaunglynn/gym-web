@@ -146,3 +146,17 @@ export const inventoryMovementSchema = z.object({
     notes: z.string().optional(),
 });
 export type InventoryMovementFormValues = z.infer<typeof inventoryMovementSchema>;
+
+// ─── Payments ───────────────────────────────────────────────────────────────
+export const createPaymentSchema = z.object({
+    memberId: z.string().min(1, "Please select a member"),
+    amount: z
+        .number({ invalid_type_error: "Amount must be a number" })
+        .positive("Amount must be greater than 0"),
+    currency: z.string().min(3).max(3),
+    method: z.enum(["CASH", "CARD", "BANK_TRANSFER", "MOBILE"]),
+    status: z.enum(["PAID", "PENDING", "FAILED", "REFUNDED"]),
+    paidAt: z.string().optional(),
+    notes: z.string().optional(),
+});
+export type CreatePaymentFormValues = z.infer<typeof createPaymentSchema>;

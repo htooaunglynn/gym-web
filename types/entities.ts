@@ -181,3 +181,40 @@ export interface CreateAdjustmentMovementPayload {
     quantity: number;
     notes?: string;
 }
+
+// ─── Payments ───────────────────────────────────────────────────────────────
+export type PaymentStatus = "PAID" | "PENDING" | "FAILED" | "REFUNDED";
+export type PaymentMethod = "CASH" | "CARD" | "BANK_TRANSFER" | "MOBILE";
+
+export interface Payment {
+    id: string;
+    memberId: string;
+    member?: Member;
+    amount: number;
+    currency: string;
+    method: PaymentMethod;
+    status: PaymentStatus;
+    paidAt: string;
+    notes?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreatePaymentPayload {
+    memberId: string;
+    amount: number;
+    currency?: string;
+    method: PaymentMethod;
+    status?: PaymentStatus;
+    paidAt?: string;
+    notes?: string;
+}
+
+export interface UpdatePaymentPayload {
+    amount?: number;
+    currency?: string;
+    method?: PaymentMethod;
+    status?: PaymentStatus;
+    paidAt?: string;
+    notes?: string;
+}

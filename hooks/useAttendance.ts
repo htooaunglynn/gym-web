@@ -10,17 +10,17 @@ import {
     CheckOutPayload,
     CorrectionPayload,
 } from "@/types/entities";
-import { AppError } from "@/types/api";
+import { AppError, PaginatedResponse } from "@/types/api";
 
 export function useAttendance(params?: ListAttendanceParams) {
-    return useQuery({
+    return useQuery<PaginatedResponse<AttendanceEvent>, AppError>({
         queryKey: queryKeys.attendance.list(params as Record<string, unknown>),
         queryFn: () => attendanceService.getAttendance(params),
     });
 }
 
 export function useAttendanceEvent(id: string) {
-    return useQuery({
+    return useQuery<AttendanceEvent, AppError>({
         queryKey: queryKeys.attendance.detail(id),
         queryFn: () => attendanceService.getAttendanceById(id),
         enabled: !!id,

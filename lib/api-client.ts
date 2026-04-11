@@ -1,5 +1,8 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import { AppError } from "@/types/api";
+import { ACCESS_TOKEN_KEY, CURRENT_USER_KEY } from "@/lib/constants";
+
+const LEGACY_USER_KEY = "user";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api/v1";
 
@@ -16,7 +19,7 @@ export const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
         if (typeof window !== "undefined") {
-            const token = localStorage.getItem("accessToken");
+            const token = localStorage.getItem(ACCESS_TOKEN_KEY);
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -45,8 +48,9 @@ export function normalizeError(error: unknown): AppError {
         if (status === 401) {
             // Clear stale token on 401
             if (typeof window !== "undefined") {
-                localStorage.removeItem("accessToken");
-                localStorage.removeItem("user");
+                localStorage.removeItem(ACCESS_TOKEN_KEY);
+                localStorage.removeItem(CURRENT_USER_KEY);
+                localStorage.removeItem(LEGACY_USER_KEY);
             }
             return {
                 code: "UNAUTHORIZED",

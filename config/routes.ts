@@ -5,7 +5,7 @@ export const ROUTES = {
     REGISTER: "/register",
 
     // Dashboard
-    DASHBOARD: "/",
+    DASHBOARD: "/dashboard",
 
     // Members
     MEMBERS: "/members",
@@ -32,6 +32,18 @@ export const ROUTES = {
     // Inventory
     INVENTORY: "/inventory",
     INVENTORY_DETAIL: (id: string) => `/inventory/${id}`,
+
+    // Payments
+    PAYMENTS: "/payments",
+    PAYMENT_DETAIL: (id: string) => `/payments/${id}`,
+
+    // Additional modules
+    SCHEDULE: "/schedule",
+    LEAVE: "/leave",
+    PERFORMANCE: "/performance",
+    PAYROLL: "/payroll",
+    RECRUITMENT: "/recruitment",
+    INBOX: "/inbox",
 
     // Users
     USERS: "/users",

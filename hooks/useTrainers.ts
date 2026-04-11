@@ -5,10 +5,10 @@ import { queryKeys } from "@/hooks/useApi";
 import * as trainerService from "@/services/trainers";
 import { ListTrainersParams } from "@/services/trainers";
 import { CreateTrainerPayload, UpdateTrainerPayload, Trainer } from "@/types/entities";
-import { AppError } from "@/types/api";
+import { AppError, PaginatedResponse } from "@/types/api";
 
 export function useTrainers(params?: ListTrainersParams) {
-    return useQuery({
+    return useQuery<PaginatedResponse<Trainer>, AppError>({
         queryKey: queryKeys.trainers.list(params as Record<string, unknown>),
         queryFn: () => trainerService.getTrainers(params),
     });
@@ -29,7 +29,7 @@ export function useTrainersDropdown() {
 }
 
 export function useTrainer(id: string) {
-    return useQuery({
+    return useQuery<Trainer, AppError>({
         queryKey: queryKeys.trainers.detail(id),
         queryFn: () => trainerService.getTrainerById(id),
         enabled: !!id,
