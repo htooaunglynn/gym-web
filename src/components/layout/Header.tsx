@@ -1,29 +1,61 @@
 import Link from "next/link";
+import { Search, ShoppingCart, Menu, ChevronDown, Dumbbell } from "lucide-react";
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/80">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 w-full bg-dark text-white shadow-md">
+      <div className="container mx-auto px-4 lg:px-8 flex h-20 items-center justify-between">
+        {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          {/* Using a standard Gym icon svg for branding */}
-          <svg className="size-8 text-blue-600 dark:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-          </svg>
-          <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">GymWeb</span>
+          <div className="text-3xl font-heading font-bold flex items-center">
+            FI<Dumbbell className="w-6 h-6 text-brand mx-0.5" strokeWidth={3} />KIT
+          </div>
         </Link>
-        <nav className="hidden md:flex gap-6">
-          <Link href="#features" className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors">Features</Link>
-          <Link href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors">Pricing</Link>
-          <Link href="#about" className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors">About</Link>
+        
+        {/* Navigation */}
+        <nav className="hidden lg:flex items-center gap-8 h-full">
+          <div className="relative group h-full flex items-center">
+            <Link href="/" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors text-brand">
+              HOME <ChevronDown className="w-4 h-4" />
+            </Link>
+          </div>
+          <Link href="/about" className="text-sm font-semibold tracking-wide hover:text-brand transition-colors">
+            ABOUT
+          </Link>
+          <div className="relative group h-full flex items-center">
+            <Link href="/services" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors">
+              SERVICES <ChevronDown className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="relative group h-full flex items-center">
+            <Link href="/pages" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors">
+              PAGES <ChevronDown className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="relative group h-full flex items-center">
+            <Link href="/blog" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors">
+              BLOG <ChevronDown className="w-4 h-4" />
+            </Link>
+          </div>
+          <Link href="/contact" className="text-sm font-semibold tracking-wide hover:text-brand transition-colors">
+            CONTACT
+          </Link>
         </nav>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors">
-            Log in
-          </Link>
-          <Link href="/signup" className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600">
-            Get Started
-          </Link>
+
+        {/* Actions */}
+        <div className="flex items-center gap-5">
+          <button aria-label="Search" className="hover:text-brand transition-colors hidden sm:block">
+            <Search className="w-5 h-5" />
+          </button>
+          <button aria-label="Cart" className="relative hover:text-brand transition-colors hidden sm:block">
+            <ShoppingCart className="w-5 h-5" />
+            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white">
+              0
+            </span>
+          </button>
+          <button aria-label="Menu" className="hover:text-brand transition-colors ml-2">
+            <Menu className="w-6 h-6" />
+          </button>
         </div>
       </div>
     </header>

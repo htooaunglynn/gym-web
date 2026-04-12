@@ -1,21 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Oswald } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const oswald = Oswald({
+  variable: "--font-oswald",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "GymWeb Admin | Manage Your Gym Effectively",
-  description: "The complete gym management solution for fitness businesses. Track memberships, billing, and scheduling in one platform.",
-  keywords: ["gym management", "fitness business software", "gym admin", "member tracking"],
+  title: "FIYKIT | Your Fitness Your Victory",
+  description: "Gym management and fitness classes.",
 };
 
 export default function RootLayout({
@@ -25,9 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="scroll-smooth">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
-      >
+      <body suppressHydrationWarning className={`${inter.variable} ${oswald.variable} antialiased min-h-screen flex flex-col font-sans`}>
         {children}
       </body>
     </html>
