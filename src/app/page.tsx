@@ -1,5 +1,7 @@
 import { TopBar } from "@/components/layout/TopBar";
 import { Header } from "@/components/layout/Header";
+import { Hero } from "@/components/sections/Hero";
+import { BMICalculator } from "@/components/sections/BMICalculator";
 import { Pricing } from "@/components/sections/Pricing";
 import { About } from "@/components/sections/About";
 import { WorkProcess } from "@/components/sections/WorkProcess";
