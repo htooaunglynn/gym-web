@@ -1,6 +1,6 @@
 import { ArrowUpRight, ArrowLeftRight, UserPlus, CreditCard, Droplet, Star } from "lucide-react";
 
-export function StatsOverview() {
+export function StatsOverview({ totalMembers = 0 }: { totalMembers?: number }) {
   return (
     <div className="bg-white rounded-3xl p-6 lg:p-8 shadow-sm border border-gray-100 flex flex-col h-full">
       {/* Top Header */}
@@ -9,7 +9,7 @@ export function StatsOverview() {
           <h2 className="text-gray-500 font-medium text-sm mb-1">Total Active Members</h2>
           <div className="flex items-end gap-3">
             <span className="text-4xl lg:text-[42px] font-bold text-gray-900 leading-none">
-              1,245
+              {totalMembers.toLocaleString()}
             </span>
           </div>
           <div className="flex items-center gap-2 mt-3">

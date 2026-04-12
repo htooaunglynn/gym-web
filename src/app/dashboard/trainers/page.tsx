@@ -32,7 +32,8 @@ export default function TrainersPage() {
         }
       });
       
-      if (res.status === 401) {
+      console.log("Response Status:", res.status);
+      if (res.status === 401 || res.status === 403) {
         localStorage.removeItem("accessToken");
         window.location.href = "/login";
         return;
