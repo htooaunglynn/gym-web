@@ -14,7 +14,9 @@ import {
   HelpCircle,
   Shield,
   Box,
-  CreditCard
+  CreditCard,
+  Store,
+  ShoppingCart
 } from "lucide-react";
 
 export function Sidebar() {
@@ -28,6 +30,8 @@ export function Sidebar() {
     { href: "/dashboard/equipment", icon: Package, label: "Equipment" },
     { href: "/dashboard/inventory", icon: Box, label: "Inventory" },
     { href: "/dashboard/plans", icon: CreditCard, label: "Membership Plans" },
+    { href: "/dashboard/products", icon: Store, label: "Products" },
+    { href: "/dashboard/sales", icon: ShoppingCart, label: "Sales" },
     { href: "/dashboard/attendance", icon: Calendar, label: "Attendance" },
     { href: "/dashboard/settings", icon: Settings, label: "Settings" },
   ];
