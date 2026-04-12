@@ -40,7 +40,7 @@ export function LoginForm() {
       // Expected: data.accessToken
       if (data.accessToken) {
         localStorage.setItem("accessToken", data.accessToken);
-        window.location.href = "/"; // Temporary redirect to Home
+        window.location.href = "/dashboard"; // Redirect to admin dashboard
       }
     } catch (err: any) {
       setError(err.message);
