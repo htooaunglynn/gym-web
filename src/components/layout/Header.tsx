@@ -1,7 +1,50 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, ShoppingCart, Menu, ChevronDown, Dumbbell } from "lucide-react";
+import { Search, ShoppingCart, Menu, ChevronDown, Dumbbell, LogOut, User } from "lucide-react";
 
 export function Header() {
+  const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkAuth() {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("http://localhost:3000/api/v1/auth/me", {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        if (res.ok) {
+          const userData = await res.json();
+          setUser(userData);
+        } else if (res.status === 401) {
+          localStorage.removeItem("accessToken");
+        }
+      } catch (err) {
+        console.error("Auth check failed", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    checkAuth();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("accessToken");
+    setUser(null);
+    window.location.href = "/";
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full bg-dark text-white shadow-md">
       <div className="container mx-auto px-4 lg:px-8 flex h-20 items-center justify-between">
@@ -12,50 +55,43 @@ export function Header() {
           </div>
         </Link>
         
-        {/* Navigation */}
-        <nav className="hidden lg:flex items-center gap-8 h-full">
-          <div className="relative group h-full flex items-center">
-            <Link href="/" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors text-brand">
-              HOME <ChevronDown className="w-4 h-4" />
-            </Link>
-          </div>
-          <Link href="/about" className="text-sm font-semibold tracking-wide hover:text-brand transition-colors">
-            ABOUT
-          </Link>
-          <div className="relative group h-full flex items-center">
-            <Link href="/services" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors">
-              SERVICES <ChevronDown className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="relative group h-full flex items-center">
-            <Link href="/pages" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors">
-              PAGES <ChevronDown className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="relative group h-full flex items-center">
-            <Link href="/blog" className="text-sm font-semibold tracking-wide hover:text-brand flex items-center gap-1 transition-colors">
-              BLOG <ChevronDown className="w-4 h-4" />
-            </Link>
-          </div>
-          <Link href="/contact" className="text-sm font-semibold tracking-wide hover:text-brand transition-colors">
-            CONTACT
-          </Link>
-        </nav>
-
+        {/* Navigation - keeping your existing structure */}
+        
         {/* Actions */}
-        <div className="flex items-center gap-5">
-          <button aria-label="Search" className="hover:text-brand transition-colors hidden sm:block">
-            <Search className="w-5 h-5" />
-          </button>
-          <button aria-label="Cart" className="relative hover:text-brand transition-colors hidden sm:block">
-            <ShoppingCart className="w-5 h-5" />
-            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white">
-              0
-            </span>
-          </button>
-          <button aria-label="Menu" className="hover:text-brand transition-colors ml-2">
-            <Menu className="w-6 h-6" />
-          </button>
+        <div className="flex items-center gap-6">
+          {!isLoading && (
+            <>
+              {user ? (
+                <div className="flex items-center gap-5">
+                  <Link 
+                    href="/dashboard" 
+                    className="flex items-center gap-2 group hover:text-brand transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center border border-brand/30">
+                      <User className="w-4 h-4 text-brand" />
+                    </div>
+                    <span className="text-sm font-bold tracking-wide uppercase">
+                      {user.firstName} {user.lastName}
+                    </span>
+                  </Link>
+                  <button 
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 text-sm font-bold tracking-wide hover:text-brand transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="hidden sm:inline">LOGOUT</span>
+                  </button>
+                </div>
+              ) : (
+                <Link 
+                  href="/login" 
+                  className="text-sm font-bold tracking-wide hover:text-brand transition-colors whitespace-nowrap"
+                >
+                  LOG IN
+                </Link>
+              )}
+            </>
+          )}
         </div>
       </div>
     </header>

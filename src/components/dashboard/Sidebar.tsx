@@ -13,7 +13,8 @@ import {
   LogOut, 
   HelpCircle,
   Shield,
-  Box
+  Box,
+  CreditCard
 } from "lucide-react";
 
 export function Sidebar() {
@@ -26,6 +27,7 @@ export function Sidebar() {
     { href: "/dashboard/trainers", icon: UserCog, label: "Trainers" },
     { href: "/dashboard/equipment", icon: Package, label: "Equipment" },
     { href: "/dashboard/inventory", icon: Box, label: "Inventory" },
+    { href: "/dashboard/plans", icon: CreditCard, label: "Membership Plans" },
     { href: "/dashboard/attendance", icon: Calendar, label: "Attendance" },
     { href: "/dashboard/settings", icon: Settings, label: "Settings" },
   ];

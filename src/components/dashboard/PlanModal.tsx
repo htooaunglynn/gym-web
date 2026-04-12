@@ -1,0 +1,203 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { X } from "lucide-react";
+
+interface PlanModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  plan?: any; // If provided, we are in EDIT mode
+}
+
+export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) {
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    amount: "",
+    billingCycle: "MONTHLY",
+    isActive: true
+  });
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (plan) {
+      setFormData({
+        name: plan.name || "",
+        description: plan.description || "",
+        amount: plan.amount?.toString() || "",
+        billingCycle: plan.billingCycle || "MONTHLY",
+        isActive: plan.isActive !== undefined ? plan.isActive : true
+      });
+    } else {
+      setFormData({
+        name: "",
+        description: "",
+        amount: "",
+        billingCycle: "MONTHLY",
+        isActive: true
+      });
+    }
+  }, [plan, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value 
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) throw new Error("No authorization token found. Please login.");
+
+      const method = plan ? "PATCH" : "POST";
+      const url = plan 
+        ? `http://localhost:3000/api/v1/membership-plans/${plan.id}` 
+        : "http://localhost:3000/api/v1/membership-plans";
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...formData,
+          amount: parseFloat(formData.amount)
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || `Failed to ${plan ? 'update' : 'create'} plan`);
+
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">{plan ? "Edit Plan" : "New Membership Plan"}</h2>
+          <button 
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-900"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6">
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100">
+              {error}
+            </div>
+          )}
+
+          <div className="mb-4">
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Plan Name</label>
+            <input 
+              type="text" 
+              name="name"
+              placeholder="e.g. Monthly Standard"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm font-semibold"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Description</label>
+            <textarea 
+              name="description"
+              placeholder="What's included in this plan?"
+              value={formData.description}
+              onChange={handleChange}
+              rows={3}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm"
+            />
+          </div>
+
+          <div className="flex gap-4 mb-6">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Amount ($)</label>
+              <input 
+                type="number" 
+                name="amount"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={formData.amount}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm font-mono"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Billing Cycle</label>
+              <select 
+                name="billingCycle"
+                value={formData.billingCycle}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm bg-white"
+              >
+                <option value="MONTHLY">Monthly</option>
+                <option value="QUARTERLY">Quarterly</option>
+                <option value="YEARLY">Yearly</option>
+                <option value="WEEKLY">Weekly</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mb-8">
+            <input 
+              type="checkbox" 
+              name="isActive"
+              id="isActive"
+              checked={formData.isActive}
+              onChange={handleChange}
+              className="w-4 h-4 rounded border-gray-300 accent-gray-900"
+            />
+            <label htmlFor="isActive" className="text-sm font-semibold text-gray-700 cursor-pointer">
+              Active and visible on landing page
+            </label>
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <button 
+              type="button" 
+              onClick={onClose}
+              className="px-6 py-2.5 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              disabled={loading}
+              className="px-6 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors disabled:opacity-50"
+            >
+               {loading ? "Processing..." : plan ? "Update Plan" : "Create Plan"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "e7ef7ac5-00c6-4baa-90f7-cfe1f3d6328f",
         "name": "Gym API",
-        "description": "Postman collection for gym-api (NestJS). Includes CRUD, attendance, inventory movements, and selected negative tests.",
+        "description": "Postman collection for gym-api (NestJS). Includes CRUD, attendance, inventory movements, membership plans, member subscriptions, products, product sales, and selected negative tests.\n\nRecommended run order:\n1) Authentication -> POST /auth/login (USER)\n2) Users -> create (captures userId)\n3) Trainers -> create (captures trainerId)\n4) Members -> create (captures memberId)\n5) Equipment / Attendance / Inventory Movements\n6) Membership Plans -> create (captures membershipPlanId)\n7) Member Subscriptions -> create (captures memberSubscriptionId), lifecycle, reports\n8) Products -> create (captures productId)\n9) Product Sales -> create (captures productSaleId), reports",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "event": [
@@ -49,6 +49,22 @@
             "value": ""
         },
         {
+            "key": "membershipPlanId",
+            "value": ""
+        },
+        {
+            "key": "memberSubscriptionId",
+            "value": ""
+        },
+        {
+            "key": "productId",
+            "value": ""
+        },
+        {
+            "key": "productSaleId",
+            "value": ""
+        },
+        {
             "key": "accessToken",
             "value": ""
         },
@@ -82,6 +98,7 @@
         },
         {
             "name": "Authentication",
+            "description": "Run POST /auth/login (USER) first to populate {{accessToken}} for all protected folders.",
             "item": [
                 {
                     "name": "POST /auth/register/member",
@@ -1350,6 +1367,1002 @@
                             "path": [
                                 "inventory-movements",
                                 "incoming"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Membership Plans",
+            "description": "Membership plan catalog flow. Run create first to store {{membershipPlanId}} for get/update/delete and subscription assignment.",
+            "auth": {
+                "type": "bearer",
+                "bearer": [
+                    {
+                        "key": "token",
+                        "value": "{{accessToken}}",
+                        "type": "string"
+                    }
+                ]
+            },
+            "item": [
+                {
+                    "name": "POST /membership-plans - create",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = pm.response.json();",
+                                    "if (json && json.id) { pm.collectionVariables.set('membershipPlanId', json.id); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Monthly Standard {{runSuffix}}\",\n  \"description\": \"Standard monthly gym plan\",\n  \"amount\": \"79.99\",\n  \"billingCycle\": \"MONTHLY\",\n  \"isActive\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /membership-plans",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans?page=1&limit=10&includeDeleted=false&isActive=true",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "isActive",
+                                    "value": "true"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /membership-plans/:id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans/{{membershipPlanId}}?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans",
+                                "{{membershipPlanId}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH /membership-plans/:id",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"description\": \"Updated plan description\",\n  \"amount\": \"89.99\",\n  \"isActive\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans/{{membershipPlanId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans",
+                                "{{membershipPlanId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /membership-plans - invalid billingCycle",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Invalid Cycle Plan {{runSuffix}}\",\n  \"amount\": \"45.00\",\n  \"billingCycle\": \"INVALID\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /membership-plans/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans/{{membershipPlanId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans",
+                                "{{membershipPlanId}}"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Member Subscriptions",
+            "description": "Subscription lifecycle flow. Requires {{memberId}} and {{membershipPlanId}} from Members and Membership Plans folders. Run create first to set {{memberSubscriptionId}}, then pause/resume/cancel/report endpoints.",
+            "auth": {
+                "type": "bearer",
+                "bearer": [
+                    {
+                        "key": "token",
+                        "value": "{{accessToken}}",
+                        "type": "string"
+                    }
+                ]
+            },
+            "item": [
+                {
+                    "name": "POST /member-subscriptions - create",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = pm.response.json();",
+                                    "if (json && json.id) { pm.collectionVariables.set('memberSubscriptionId', json.id); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"membershipPlanId\": \"{{membershipPlanId}}\",\n  \"paymentStatus\": \"PAID\",\n  \"paymentMethod\": \"CARD\",\n  \"paymentReference\": \"pm-ref-{{runSuffix}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /member-subscriptions",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions?page=1&limit=10&includeDeleted=false&memberId={{memberId}}&status=ACTIVE",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "memberId",
+                                    "value": "{{memberId}}"
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "ACTIVE"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /member-subscriptions/:id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH /member-subscriptions/:id",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"note\": \"Updated by Postman flow\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /member-subscriptions/:id/pause",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}/pause",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}",
+                                "pause"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /member-subscriptions/:id/resume",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}/resume",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}",
+                                "resume"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /member-subscriptions/:id/cancel",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"note\": \"Customer requested cancellation\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}/cancel",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}",
+                                "cancel"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /member-subscriptions/:id/resume - conflict after cancel",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 409', function () { pm.response.to.have.status(409); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}/resume",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}",
+                                "resume"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /member-subscriptions/reports/active-by-plan",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/reports/active-by-plan",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "reports",
+                                "active-by-plan"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /member-subscriptions/reports/expiring",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/reports/expiring?days=30",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "reports",
+                                "expiring"
+                            ],
+                            "query": [
+                                {
+                                    "key": "days",
+                                    "value": "30"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /member-subscriptions/reports/monthly-revenue-estimate",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/reports/monthly-revenue-estimate",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "reports",
+                                "monthly-revenue-estimate"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /member-subscriptions/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"note\": \"Cleanup subscription\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Products",
+            "description": "Product catalog flow. Run create first to store {{productId}} for get/update/delete and product-sale assignments.",
+            "auth": {
+                "type": "bearer",
+                "bearer": [
+                    {
+                        "key": "token",
+                        "value": "{{accessToken}}",
+                        "type": "string"
+                    }
+                ]
+            },
+            "item": [
+                {
+                    "name": "POST /products - create",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = pm.response.json();",
+                                    "if (json && json.id) { pm.collectionVariables.set('productId', json.id); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Protein Shake {{runSuffix}}\",\n  \"sku\": \"SHAKE-{{runSuffix}}\",\n  \"description\": \"Ready to drink protein\",\n  \"unitPrice\": 5.99,\n  \"quantity\": 30,\n  \"isActive\": true,\n  \"createdByUserId\": \"{{userId}}\",\n  \"managedByUserId\": \"{{userId}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/products",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /products",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/products?page=1&limit=10&includeDeleted=false&onlyActive=true",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "onlyActive",
+                                    "value": "true"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /products/:id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH /products/:id",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"description\": \"Updated product description\",\n  \"unitPrice\": 6.49,\n  \"isActive\": true\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /products - duplicate SKU",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 409', function () { pm.response.to.have.status(409); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Duplicate Product {{runSuffix}}\",\n  \"sku\": \"SHAKE-{{runSuffix}}\",\n  \"unitPrice\": 4.99\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/products",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /products/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Product Sales",
+            "description": "Product sales lifecycle and reporting. Requires {{productId}} and optional {{memberId}}. Run create first to set {{productSaleId}}.",
+            "auth": {
+                "type": "bearer",
+                "bearer": [
+                    {
+                        "key": "token",
+                        "value": "{{accessToken}}",
+                        "type": "string"
+                    }
+                ]
+            },
+            "item": [
+                {
+                    "name": "POST /product-sales - create",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = pm.response.json();",
+                                    "if (json && json.id) { pm.collectionVariables.set('productSaleId', json.id); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 2\n    }\n  ],\n  \"discountAmount\": 0,\n  \"taxAmount\": 0,\n  \"paymentStatus\": \"PAID\",\n  \"paymentMethod\": \"CASH\",\n  \"paymentReference\": \"sale-{{runSuffix}}\",\n  \"note\": \"Counter sale\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /product-sales",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales?page=1&limit=10&includeDeleted=false&memberId={{memberId}}&paymentStatus=PAID",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "memberId",
+                                    "value": "{{memberId}}"
+                                },
+                                {
+                                    "key": "paymentStatus",
+                                    "value": "PAID"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /product-sales/:id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales/{{productSaleId}}?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales",
+                                "{{productSaleId}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH /product-sales/:id",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"paymentStatus\": \"REFUNDED\",\n  \"note\": \"Refund issued\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales/{{productSaleId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales",
+                                "{{productSaleId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /product-sales/reports/revenue-summary",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales/reports/revenue-summary?startDate=2026-04-01T00:00:00.000Z&endDate=2026-04-30T23:59:59.999Z&paymentStatus=PAID&memberId={{memberId}}&productId={{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales",
+                                "reports",
+                                "revenue-summary"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-04-01T00:00:00.000Z"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-04-30T23:59:59.999Z"
+                                },
+                                {
+                                    "key": "paymentStatus",
+                                    "value": "PAID"
+                                },
+                                {
+                                    "key": "memberId",
+                                    "value": "{{memberId}}"
+                                },
+                                {
+                                    "key": "productId",
+                                    "value": "{{productId}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /product-sales/reports/top-products",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales/reports/top-products?startDate=2026-04-01T00:00:00.000Z&endDate=2026-04-30T23:59:59.999Z&paymentStatus=PAID&topLimit=5",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales",
+                                "reports",
+                                "top-products"
+                            ],
+                            "query": [
+                                {
+                                    "key": "startDate",
+                                    "value": "2026-04-01T00:00:00.000Z"
+                                },
+                                {
+                                    "key": "endDate",
+                                    "value": "2026-04-30T23:59:59.999Z"
+                                },
+                                {
+                                    "key": "paymentStatus",
+                                    "value": "PAID"
+                                },
+                                {
+                                    "key": "topLimit",
+                                    "value": "5"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /product-sales - insufficient stock",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 99999\n    }\n  ]\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /product-sales/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales/{{productSaleId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales",
+                                "{{productSaleId}}"
                             ]
                         }
                     }
