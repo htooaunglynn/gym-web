@@ -1,54 +1,24 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/useApi";
+import { createCrudHooks } from "@/hooks/useCrudEntity";
 import * as equipmentService from "@/services/equipment";
 import { ListEquipmentParams } from "@/services/equipment";
 import { CreateEquipmentPayload, UpdateEquipmentPayload, Equipment } from "@/types/entities";
-import { AppError, PaginatedResponse } from "@/types/api";
 
-export function useEquipment(params?: ListEquipmentParams) {
-    return useQuery<PaginatedResponse<Equipment>, AppError>({
-        queryKey: queryKeys.equipment.list(params as Record<string, unknown>),
-        queryFn: () => equipmentService.getEquipment(params),
-    });
-}
+const equipmentCrudHooks = createCrudHooks<Equipment, CreateEquipmentPayload, UpdateEquipmentPayload, ListEquipmentParams>({
+    queryKeys: queryKeys.equipment,
+    service: {
+        list: equipmentService.getEquipment,
+        detail: equipmentService.getEquipmentById,
+        create: equipmentService.createEquipment,
+        update: equipmentService.updateEquipment,
+        remove: equipmentService.deleteEquipment,
+    },
+});
 
-export function useEquipmentItem(id: string) {
-    return useQuery<Equipment, AppError>({
-        queryKey: queryKeys.equipment.detail(id),
-        queryFn: () => equipmentService.getEquipmentById(id),
-        enabled: !!id,
-    });
-}
-
-export function useCreateEquipment() {
-    const queryClient = useQueryClient();
-    return useMutation<Equipment, AppError, CreateEquipmentPayload>({
-        mutationFn: equipmentService.createEquipment,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all() });
-        },
-    });
-}
-
-export function useUpdateEquipment() {
-    const queryClient = useQueryClient();
-    return useMutation<Equipment, AppError, { id: string; payload: UpdateEquipmentPayload }>({
-        mutationFn: ({ id, payload }) => equipmentService.updateEquipment(id, payload),
-        onSuccess: (_data, vars) => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all() });
-            queryClient.invalidateQueries({ queryKey: queryKeys.equipment.detail(vars.id) });
-        },
-    });
-}
-
-export function useDeleteEquipment() {
-    const queryClient = useQueryClient();
-    return useMutation<void, AppError, string>({
-        mutationFn: equipmentService.deleteEquipment,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all() });
-        },
-    });
-}
+export const useEquipment = equipmentCrudHooks.useList;
+export const useEquipmentItem = equipmentCrudHooks.useDetail;
+export const useCreateEquipment = equipmentCrudHooks.useCreate;
+export const useUpdateEquipment = equipmentCrudHooks.useUpdate;
+export const useDeleteEquipment = equipmentCrudHooks.useDelete;

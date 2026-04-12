@@ -1,13 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Card } from "@/components/shared/Card";
 import { Button } from "@/components/shared/Button";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
-import { Pagination } from "@/components/shared/Pagination";
 import { TrainerForm } from "@/components/features/trainers/TrainerForm";
 import { TrainerTable } from "@/components/features/trainers/TrainerTable";
+import { CrudPageTemplate } from "@/components/shared/CrudPageTemplate";
+import { useCrudPanelState } from "@/hooks/useCrudPanelState";
 import { useTrainers, useCreateTrainer, useUpdateTrainer, useDeleteTrainer } from "@/hooks/useTrainers";
 import { useToast } from "@/context/ToastContext";
 import { PAGINATION } from "@/config/pagination";
@@ -19,8 +17,8 @@ export default function TrainersPage() {
 
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
-    const [panelMode, setPanelMode] = useState<"create" | "edit" | null>(null);
-    const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
+    const { panelMode, selectedEntity: selectedTrainer, openCreate, openEdit, closePanel } =
+        useCrudPanelState<Trainer>();
 
     const params = useMemo(
         () => ({
@@ -40,21 +38,6 @@ export default function TrainersPage() {
     const meta = trainersQuery.data?.meta;
     const totalItems = meta?.total ?? 0;
     const pageSize = meta?.limit ?? PAGINATION.trainers.limit;
-
-    const openCreate = () => {
-        setSelectedTrainer(null);
-        setPanelMode("create");
-    };
-
-    const openEdit = (trainer: Trainer) => {
-        setSelectedTrainer(trainer);
-        setPanelMode("edit");
-    };
-
-    const closePanel = () => {
-        setSelectedTrainer(null);
-        setPanelMode(null);
-    };
 
     const handleCreate = (values: CreateTrainerFormValues) => {
         createTrainer.mutate(values, {
@@ -103,19 +86,12 @@ export default function TrainersPage() {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="display-lg text-on-surface">Trainers</h1>
-                    <p className="text-body-md text-on-surface-variant mt-1">
-                        Manage trainer profiles, contact details, and assignments.
-                    </p>
-                </div>
-
-                <Button onClick={openCreate}>Add Trainer</Button>
-            </div>
-
-            <Card variant="outlined" className="space-y-4">
+        <CrudPageTemplate
+            title="Trainers"
+            description="Manage trainer profiles, contact details, and assignments."
+            addLabel="Add Trainer"
+            onAdd={openCreate}
+            filters={
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <input
                         value={search}
@@ -137,49 +113,36 @@ export default function TrainersPage() {
                         Reset Filters
                     </Button>
                 </div>
-
-                {trainersQuery.isLoading ? (
-                    <div className="py-10">
-                        <LoadingSpinner text="Loading trainers..." />
-                    </div>
-                ) : trainersQuery.isError ? (
-                    <ErrorState
-                        title="Could not load trainers"
-                        message={trainersQuery.error.userMessage}
-                        onRetry={() => trainersQuery.refetch()}
-                    />
-                ) : (
-                    <>
-                        <TrainerTable
-                            trainers={trainers}
-                            onEdit={openEdit}
-                            onDelete={handleDelete}
-                            isDeleting={deleteTrainer.isPending}
-                        />
-
-                        <Pagination
-                            currentPage={page}
-                            totalItems={totalItems}
-                            pageSize={pageSize}
-                            onPageChange={setPage}
-                        />
-                    </>
-                )}
-            </Card>
-
-            {panelMode ? (
-                <Card variant="elevated" className="space-y-4">
-                    <div>
-                        <h2 className="headline-sm text-on-surface">
-                            {panelMode === "create" ? "Create trainer" : "Edit trainer"}
-                        </h2>
-                        <p className="text-body-md text-on-surface-variant mt-1">
-                            {panelMode === "create"
-                                ? "Add a new trainer profile."
-                                : "Update trainer details."}
-                        </p>
-                    </div>
-
+            }
+            isLoading={trainersQuery.isLoading}
+            isError={trainersQuery.isError}
+            errorTitle="Could not load trainers"
+            errorMessage={trainersQuery.isError ? trainersQuery.error.userMessage : undefined}
+            onRetry={() => trainersQuery.refetch()}
+            loadingText="Loading trainers..."
+            tableContent={
+                <TrainerTable
+                    trainers={trainers}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                    isDeleting={deleteTrainer.isPending}
+                />
+            }
+            currentPage={page}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            panelMode={panelMode}
+            panelTitle={panelMode ? (panelMode === "create" ? "Create trainer" : "Edit trainer") : undefined}
+            panelDescription={
+                panelMode
+                    ? panelMode === "create"
+                        ? "Add a new trainer profile."
+                        : "Update trainer details."
+                    : undefined
+            }
+            panelContent={
+                panelMode ? (
                     <TrainerForm
                         mode={panelMode}
                         initialTrainer={selectedTrainer}
@@ -188,8 +151,8 @@ export default function TrainersPage() {
                         onCreate={handleCreate}
                         onUpdate={handleUpdate}
                     />
-                </Card>
-            ) : null}
-        </div>
+                ) : null
+            }
+        />
     );
 }

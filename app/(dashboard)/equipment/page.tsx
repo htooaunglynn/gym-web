@@ -1,13 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Card } from "@/components/shared/Card";
 import { Button } from "@/components/shared/Button";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
-import { Pagination } from "@/components/shared/Pagination";
 import { EquipmentForm } from "@/components/features/equipment/EquipmentForm";
 import { EquipmentTable } from "@/components/features/equipment/EquipmentTable";
+import { CrudPageTemplate } from "@/components/shared/CrudPageTemplate";
+import { useCrudPanelState } from "@/hooks/useCrudPanelState";
 import { useEquipment, useCreateEquipment, useUpdateEquipment, useDeleteEquipment } from "@/hooks/useEquipment";
 import { useToast } from "@/context/ToastContext";
 import { PAGINATION } from "@/config/pagination";
@@ -24,8 +22,8 @@ export default function EquipmentPage() {
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState<EquipmentStatus | "">("");
     const [category, setCategory] = useState("");
-    const [panelMode, setPanelMode] = useState<"create" | "edit" | null>(null);
-    const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+    const { panelMode, selectedEntity: selectedEquipment, openCreate, openEdit, closePanel } =
+        useCrudPanelState<Equipment>();
 
     const params = useMemo(
         () => ({
@@ -47,21 +45,6 @@ export default function EquipmentPage() {
     const meta = equipmentQuery.data?.meta;
     const totalItems = meta?.total ?? 0;
     const pageSize = meta?.limit ?? PAGINATION.equipment.limit;
-
-    const openCreate = () => {
-        setSelectedEquipment(null);
-        setPanelMode("create");
-    };
-
-    const openEdit = (item: Equipment) => {
-        setSelectedEquipment(item);
-        setPanelMode("edit");
-    };
-
-    const closePanel = () => {
-        setSelectedEquipment(null);
-        setPanelMode(null);
-    };
 
     const handleCreate = (values: CreateEquipmentFormValues) => {
         createEquipment.mutate(values, {
@@ -110,19 +93,12 @@ export default function EquipmentPage() {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="display-lg text-on-surface">Equipment</h1>
-                    <p className="text-body-md text-on-surface-variant mt-1">
-                        Track equipment inventory, status, and maintenance notes.
-                    </p>
-                </div>
-
-                <Button onClick={openCreate}>Add Equipment</Button>
-            </div>
-
-            <Card variant="outlined" className="space-y-4">
+        <CrudPageTemplate
+            title="Equipment"
+            description="Track equipment inventory, status, and maintenance notes."
+            addLabel="Add Equipment"
+            onAdd={openCreate}
+            filters={
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <input
                         value={search}
@@ -178,49 +154,36 @@ export default function EquipmentPage() {
                         Reset Filters
                     </Button>
                 </div>
-
-                {equipmentQuery.isLoading ? (
-                    <div className="py-10">
-                        <LoadingSpinner text="Loading equipment..." />
-                    </div>
-                ) : equipmentQuery.isError ? (
-                    <ErrorState
-                        title="Could not load equipment"
-                        message={equipmentQuery.error.userMessage}
-                        onRetry={() => equipmentQuery.refetch()}
-                    />
-                ) : (
-                    <>
-                        <EquipmentTable
-                            equipment={equipment}
-                            onEdit={openEdit}
-                            onDelete={handleDelete}
-                            isDeleting={deleteEquipment.isPending}
-                        />
-
-                        <Pagination
-                            currentPage={page}
-                            totalItems={totalItems}
-                            pageSize={pageSize}
-                            onPageChange={setPage}
-                        />
-                    </>
-                )}
-            </Card>
-
-            {panelMode ? (
-                <Card variant="elevated" className="space-y-4">
-                    <div>
-                        <h2 className="headline-sm text-on-surface">
-                            {panelMode === "create" ? "Create equipment" : "Edit equipment"}
-                        </h2>
-                        <p className="text-body-md text-on-surface-variant mt-1">
-                            {panelMode === "create"
-                                ? "Add a new equipment item to inventory."
-                                : "Update equipment details and status."}
-                        </p>
-                    </div>
-
+            }
+            isLoading={equipmentQuery.isLoading}
+            isError={equipmentQuery.isError}
+            errorTitle="Could not load equipment"
+            errorMessage={equipmentQuery.isError ? equipmentQuery.error.userMessage : undefined}
+            onRetry={() => equipmentQuery.refetch()}
+            loadingText="Loading equipment..."
+            tableContent={
+                <EquipmentTable
+                    equipment={equipment}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                    isDeleting={deleteEquipment.isPending}
+                />
+            }
+            currentPage={page}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            panelMode={panelMode}
+            panelTitle={panelMode ? (panelMode === "create" ? "Create equipment" : "Edit equipment") : undefined}
+            panelDescription={
+                panelMode
+                    ? panelMode === "create"
+                        ? "Add a new equipment item to inventory."
+                        : "Update equipment details and status."
+                    : undefined
+            }
+            panelContent={
+                panelMode ? (
                     <EquipmentForm
                         mode={panelMode}
                         initialEquipment={selectedEquipment}
@@ -229,8 +192,8 @@ export default function EquipmentPage() {
                         onCreate={handleCreate}
                         onUpdate={handleUpdate}
                     />
-                </Card>
-            ) : null}
-        </div>
+                ) : null
+            }
+        />
     );
 }

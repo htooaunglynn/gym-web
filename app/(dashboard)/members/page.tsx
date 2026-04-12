@@ -1,14 +1,12 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Card } from "@/components/shared/Card";
-import { Button } from "@/components/shared/Button";
-import { ErrorState } from "@/components/shared/ErrorState";
-import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
-import { Pagination } from "@/components/shared/Pagination";
 import { MemberForm } from "@/components/features/members/MemberForm";
+import { Button } from "@/components/shared/Button";
 import { MemberTable } from "@/components/features/members/MemberTable";
+import { CrudPageTemplate } from "@/components/shared/CrudPageTemplate";
 import { useMembers, useCreateMember, useUpdateMember, useDeleteMember } from "@/hooks/useMembers";
+import { useCrudPanelState } from "@/hooks/useCrudPanelState";
 import { useTrainersDropdown } from "@/hooks/useTrainers";
 import { useToast } from "@/context/ToastContext";
 import { PAGINATION } from "@/config/pagination";
@@ -21,8 +19,8 @@ export default function MembersPage() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
     const [trainerId, setTrainerId] = useState("");
-    const [panelMode, setPanelMode] = useState<"create" | "edit" | null>(null);
-    const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+    const { panelMode, selectedEntity: selectedMember, openCreate, openEdit, closePanel } =
+        useCrudPanelState<Member>();
 
     const params = useMemo(
         () => ({
@@ -44,21 +42,6 @@ export default function MembersPage() {
     const meta = membersQuery.data?.meta;
     const totalItems = meta?.total ?? 0;
     const pageSize = meta?.limit ?? PAGINATION.members.limit;
-
-    const openCreate = () => {
-        setSelectedMember(null);
-        setPanelMode("create");
-    };
-
-    const openEdit = (member: Member) => {
-        setSelectedMember(member);
-        setPanelMode("edit");
-    };
-
-    const closePanel = () => {
-        setSelectedMember(null);
-        setPanelMode(null);
-    };
 
     const handleCreate = (values: CreateMemberFormValues) => {
         createMember.mutate(values, {
@@ -110,19 +93,12 @@ export default function MembersPage() {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="display-lg text-on-surface">Members</h1>
-                    <p className="text-body-md text-on-surface-variant mt-1">
-                        Manage member profiles, trainer assignments, and lifecycle changes.
-                    </p>
-                </div>
-
-                <Button onClick={openCreate}>Add Member</Button>
-            </div>
-
-            <Card variant="outlined" className="space-y-4">
+        <CrudPageTemplate
+            title="Members"
+            description="Manage member profiles, trainer assignments, and lifecycle changes."
+            addLabel="Add Member"
+            onAdd={openCreate}
+            filters={
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <input
                         value={search}
@@ -161,49 +137,36 @@ export default function MembersPage() {
                         Reset Filters
                     </Button>
                 </div>
-
-                {membersQuery.isLoading ? (
-                    <div className="py-10">
-                        <LoadingSpinner text="Loading members..." />
-                    </div>
-                ) : membersQuery.isError ? (
-                    <ErrorState
-                        title="Could not load members"
-                        message={membersQuery.error.userMessage}
-                        onRetry={() => membersQuery.refetch()}
-                    />
-                ) : (
-                    <>
-                        <MemberTable
-                            members={members}
-                            onEdit={openEdit}
-                            onDelete={handleDelete}
-                            isDeleting={deleteMember.isPending}
-                        />
-
-                        <Pagination
-                            currentPage={page}
-                            totalItems={totalItems}
-                            pageSize={pageSize}
-                            onPageChange={setPage}
-                        />
-                    </>
-                )}
-            </Card>
-
-            {panelMode ? (
-                <Card variant="elevated" className="space-y-4">
-                    <div>
-                        <h2 className="headline-sm text-on-surface">
-                            {panelMode === "create" ? "Create member" : "Edit member"}
-                        </h2>
-                        <p className="text-body-md text-on-surface-variant mt-1">
-                            {panelMode === "create"
-                                ? "Create a new membership profile."
-                                : "Update profile details and trainer assignment."}
-                        </p>
-                    </div>
-
+            }
+            isLoading={membersQuery.isLoading}
+            isError={membersQuery.isError}
+            errorTitle="Could not load members"
+            errorMessage={membersQuery.isError ? membersQuery.error.userMessage : undefined}
+            onRetry={() => membersQuery.refetch()}
+            loadingText="Loading members..."
+            tableContent={
+                <MemberTable
+                    members={members}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                    isDeleting={deleteMember.isPending}
+                />
+            }
+            currentPage={page}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            panelMode={panelMode}
+            panelTitle={panelMode ? (panelMode === "create" ? "Create member" : "Edit member") : undefined}
+            panelDescription={
+                panelMode
+                    ? panelMode === "create"
+                        ? "Create a new membership profile."
+                        : "Update profile details and trainer assignment."
+                    : undefined
+            }
+            panelContent={
+                panelMode ? (
                     <MemberForm
                         mode={panelMode}
                         initialMember={selectedMember}
@@ -213,8 +176,8 @@ export default function MembersPage() {
                         onCreate={handleCreate}
                         onUpdate={handleUpdate}
                     />
-                </Card>
-            ) : null}
-        </div>
+                ) : null
+            }
+        />
     );
 }

@@ -1,4 +1,4 @@
-import { Member } from "@/types/entities";
+import { Equipment, Member, Trainer } from "@/types/entities";
 import { PaginatedResponse } from "@/types/api";
 import { AuthResponse, User } from "@/types/auth";
 
@@ -28,6 +28,64 @@ export function buildMemberList(
     const data = Array.from({ length: count }, (_, i) =>
         buildMember({ id: `member-${i + 1}`, email: `member${i + 1}@example.com`, ...overrides })
     );
+    return {
+        data,
+        meta: { total: count, limit: 10, offset: 0, hasMore: false },
+    };
+}
+
+// ─── Trainer ─────────────────────────────────────────────────────────────────
+export function buildTrainer(overrides: Partial<Trainer> = {}): Trainer {
+    return {
+        id: nextId(),
+        email: "trainer@example.com",
+        firstName: "Taylor",
+        lastName: "Coach",
+        phone: "+15550004567",
+        members: [],
+        createdAt: "2025-01-01T00:00:00.000Z",
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        ...overrides,
+    };
+}
+
+export function buildTrainerList(
+    count = 3,
+    overrides: Partial<Trainer> = {}
+): PaginatedResponse<Trainer> {
+    const data = Array.from({ length: count }, (_, i) =>
+        buildTrainer({ id: `trainer-${i + 1}`, email: `trainer${i + 1}@example.com`, ...overrides })
+    );
+
+    return {
+        data,
+        meta: { total: count, limit: 10, offset: 0, hasMore: false },
+    };
+}
+
+// ─── Equipment ───────────────────────────────────────────────────────────────
+export function buildEquipment(overrides: Partial<Equipment> = {}): Equipment {
+    return {
+        id: nextId(),
+        name: "Treadmill Pro",
+        category: "Cardio",
+        quantity: 4,
+        status: "OPERATIONAL",
+        notes: "Floor A",
+        createdAt: "2025-01-01T00:00:00.000Z",
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        ...overrides,
+    };
+}
+
+export function buildEquipmentList(
+    count = 3,
+    overrides: Partial<Equipment> = {}
+): PaginatedResponse<Equipment> {
+    const data = Array.from({ length: count }, (_, i) =>
+        buildEquipment({ id: `equipment-${i + 1}`, name: `Equipment ${i + 1}`, ...overrides })
+    );
+
     return {
         data,
         meta: { total: count, limit: 10, offset: 0, hasMore: false },
