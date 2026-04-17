@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { AddUserModal } from "@/components/crud/AddUserModal";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { PaginationControls } from "@/components/shared/PaginationControls";
+import { PermissionGuard } from "@/components/shared/PermissionGuard";
+import { usePermission } from "@/hooks/usePermission";
+import { useToast } from "@/contexts/ToastContext";
+import { apiClient, PaginationResponse } from "@/lib/apiClient";
 
 interface User {
   id: string;
@@ -11,48 +17,46 @@ interface User {
   phone: string;
   firstName: string;
   lastName: string;
-  role: "ADMIN" | "STAFF";
+  role: "ADMIN" | "BRANCH_ADMIN" | "STAFF" | "HR" | "MANAGER";
   createdAt: string;
 }
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [meta, setMeta] = useState({
+    totalItems: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+  });
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("All Users");
+
+  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
+
+  // Delete confirmation state
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | undefined>(
+    undefined,
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const canEdit = usePermission("USERS", "CREATE_UPDATE");
+  const canDelete = usePermission("USERS", "DELETE");
+  const { showToast } = useToast();
 
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("accessToken");
-      if (!token) throw new Error("No token found");
-
-      const res = await fetch("http://localhost:3000/api/v1/users?page=1&limit=50&includeDeleted=false", {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+      const result = await apiClient<PaginationResponse<User>>("/users", {
+        params: { page, limit: 20, includeDeleted: false },
       });
-      
-      console.log("Response Status:", res.status);
-      if (res.status === 401 || res.status === 403) {
-        localStorage.removeItem("accessToken");
-        window.location.href = "/login";
-        return;
-      }
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        console.error("Users API Error Response:", errData);
-        throw new Error(errData.message || "Failed to fetch users");
-      }
-      
-      const data = await res.json();
-      setUsers(Array.isArray(data) ? data : data.data || []);
+      setUsers(result.data);
+      setMeta(result.meta);
     } catch (error) {
       console.error(error);
-      setUsers([
-        { id: "u_1", firstName: "Admin", lastName: "User", phone: "+1 (555) 000", email: "admin@gym.local", role: "ADMIN", createdAt: new Date().toISOString() },
-      ]);
     } finally {
       setIsLoading(false);
     }
@@ -60,13 +64,50 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, [activeTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, page]);
+
+  const handleOpenCreate = () => {
+    setSelectedUser(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setSelectedUser(user);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedUser(undefined);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmDeleteUser) return;
+    setIsDeleting(true);
+    try {
+      await apiClient(`/users/${confirmDeleteUser.id}`, { method: "DELETE" });
+      showToast(
+        `${confirmDeleteUser.firstName} ${confirmDeleteUser.lastName}'s access has been revoked`,
+        "success",
+      );
+      setConfirmDeleteUser(undefined);
+      fetchUsers();
+    } catch {
+      // apiClient already shows an error toast
+      setConfirmDeleteUser(undefined);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const columns: ColumnDef<User>[] = [
     {
       header: "Id",
       className: "w-[80px]",
-      accessor: (row) => <span className="text-gray-500">#{row.id.slice(0, 4)}</span>
+      accessor: (row) => (
+        <span className="text-gray-500">#{row.id.slice(0, 4)}</span>
+      ),
     },
     {
       header: "User Name",
@@ -74,7 +115,7 @@ export default function UsersPage() {
       accessor: (row) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative shadow-sm ring-2 ring-gray-100">
-            <Image 
+            <Image
               src={`https://ui-avatars.com/api/?name=${row.firstName}+${row.lastName}&background=random`}
               alt="Avatar"
               fill
@@ -82,67 +123,116 @@ export default function UsersPage() {
               unoptimized
             />
           </div>
-          <span className="font-bold">{row.firstName} {row.lastName}</span>
+          <span className="font-bold">
+            {row.firstName} {row.lastName}
+          </span>
         </div>
-      )
+      ),
     },
     {
       header: "Role",
       className: "w-[120px]",
       accessor: (row) => (
-        <span className={`px-3 py-1 rounded-[8px] text-[11px] font-bold uppercase tracking-wider ${row.role === 'ADMIN' ? 'bg-[#FF5C39]/10 text-[#E84C4C] border border-[#FF5C39]/20' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+        <span
+          className={`px-3 py-1 rounded-[8px] text-[11px] font-bold uppercase tracking-wider ${row.role === "ADMIN" ? "bg-[#FF5C39]/10 text-[#E84C4C] border border-[#FF5C39]/20" : "bg-blue-50 text-blue-600 border border-blue-100"}`}
+        >
           {row.role}
         </span>
-      )
+      ),
     },
     {
       header: "Phone",
       className: "w-[160px]",
       accessor: (row) => (
-         <div className="flex items-center gap-1.5 text-gray-500 font-medium">
-           {row.phone}
-         </div>
-      )
+        <div className="flex items-center gap-1.5 text-gray-500 font-medium">
+          {row.phone}
+        </div>
+      ),
     },
     {
       header: "Email",
       accessor: "email",
-      className: "text-[#E84C4C] min-w-[200px]" 
-    }
+      className: "text-[#E84C4C] min-w-[200px]",
+    },
   ];
+
+  // Build actions array based on permissions
+  const actions = [
+    canEdit
+      ? {
+          label: "Change Role",
+          onClick: (row: User) => handleOpenEdit(row),
+        }
+      : null,
+    canDelete
+      ? {
+          label: "Revoke Access",
+          onClick: (row: User) => setConfirmDeleteUser(row),
+          className: "text-[#E84C4C] hover:bg-red-50",
+        }
+      : null,
+  ].filter(Boolean) as {
+    label: string;
+    onClick: (row: User) => void;
+    className?: string;
+  }[];
 
   return (
     <div className="animate-in fade-in max-w-[1600px] mx-auto pb-20">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 mt-4">System Users</h1>
-          <p className="text-gray-500 font-medium text-sm">Manage staff and administrative access to the platform.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 mt-4">
+            System Users
+          </h1>
+          <p className="text-gray-500 font-medium text-sm">
+            Manage staff and administrative access to the platform.
+          </p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
-        >
-          + Add User
-        </button>
+        <PermissionGuard feature="USERS" action="CREATE_UPDATE" fallback={null}>
+          <button
+            onClick={handleOpenCreate}
+            className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
+          >
+            + Add User
+          </button>
+        </PermissionGuard>
       </div>
 
-      <DataTable 
-        columns={columns} 
-        data={users} 
+      <DataTable
+        columns={columns}
+        data={users}
         isLoading={isLoading}
         tabs={["All Users", "Admins Only", "Staff Only"]}
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        actions={[
-          { label: "Change Role", onClick: (row) => console.log("Edit", row.id) },
-          { label: "Revoke Access", onClick: (row) => console.log("Delete", row.id), className: "text-[#E84C4C] hover:bg-red-50" },
-        ]}
+        actions={actions}
       />
 
-      <AddUserModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSuccess={fetchUsers} 
+      <PaginationControls
+        currentPage={page}
+        totalPages={meta.totalPages}
+        onPageChange={setPage}
+      />
+
+      <AddUserModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onSuccess={fetchUsers}
+        user={selectedUser}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDeleteUser}
+        title="Revoke Access"
+        message={
+          confirmDeleteUser
+            ? `Are you sure you want to revoke access for ${confirmDeleteUser.firstName} ${confirmDeleteUser.lastName}? This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Revoke Access"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setConfirmDeleteUser(undefined)}
+        isLoading={isDeleting}
       />
     </div>
   );

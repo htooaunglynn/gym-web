@@ -1,30 +1,77 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+import { useToast } from "@/contexts/ToastContext";
+
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  role: "ADMIN" | "BRANCH_ADMIN" | "STAFF" | "HR" | "MANAGER";
+}
 
 interface AddUserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** When provided, the modal operates in edit mode (PATCH /users/:id) */
+  user?: User;
 }
 
-export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) {
+export function AddUserModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  user,
+}: AddUserModalProps) {
+  const isEditMode = !!user;
+  const { showToast } = useToast();
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    role: "STAFF",
-    password: ""
+    role: "STAFF" as "ADMIN" | "BRANCH_ADMIN" | "STAFF" | "HR" | "MANAGER",
+    password: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pre-populate form when editing an existing user
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        password: "",
+      });
+    } else {
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        role: "STAFF",
+        password: "",
+      });
+    }
+    setError(null);
+  }, [user, isOpen]);
+
   if (!isOpen) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,26 +80,37 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
     setError(null);
 
     try {
-      const token = localStorage.getItem("accessToken");
-      if (!token) throw new Error("No authorization token found. Please login.");
+      if (isEditMode && user) {
+        // Edit mode: PATCH /users/:id — only send changed fields (omit password if empty)
+        const payload: Partial<typeof formData> = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          role: formData.role,
+        };
+        if (formData.password) {
+          payload.password = formData.password;
+        }
+        await apiClient(`/users/${user.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        showToast("User updated successfully", "success");
+      } else {
+        // Create mode: POST /users
+        await apiClient("/users", {
+          method: "POST",
+          body: JSON.stringify(formData),
+        });
+        showToast("User created successfully", "success");
+      }
 
-      const res = await fetch("http://localhost:3000/api/v1/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(formData) // Sends firstName, lastName, email, phone, role, password
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to create system user");
-
-      setFormData({ firstName: "", lastName: "", email: "", phone: "", role: "STAFF", password: "" });
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An error occurred";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -62,8 +120,10 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden shadow-black/10">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">Add System User</h2>
-          <button 
+          <h2 className="text-xl font-bold text-gray-900">
+            {isEditMode ? "Change User Role" : "Add System User"}
+          </h2>
+          <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-900"
           >
@@ -80,9 +140,11 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
 
           <div className="flex gap-4 mb-4">
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">First Name</label>
-              <input 
-                type="text" 
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                First Name
+              </label>
+              <input
+                type="text"
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleChange}
@@ -91,9 +153,11 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Last Name</label>
-              <input 
-                type="text" 
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Last Name
+              </label>
+              <input
+                type="text"
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange}
@@ -104,9 +168,11 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Email Address</label>
-            <input 
-              type="email" 
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+              Email Address
+            </label>
+            <input
+              type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
@@ -117,9 +183,11 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
 
           <div className="flex gap-4 mb-4">
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Phone</label>
-              <input 
-                type="text" 
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Phone
+              </label>
+              <input
+                type="text"
                 name="phone"
                 placeholder="+1 (555)"
                 value={formData.phone}
@@ -129,9 +197,11 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Access Role</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Access Role
+              </label>
               <div className="relative">
-                <select 
+                <select
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
@@ -139,41 +209,62 @@ export function AddUserModal({ isOpen, onClose, onSuccess }: AddUserModalProps) 
                 >
                   <option value="STAFF">STAFF</option>
                   <option value="ADMIN">ADMIN</option>
+                  <option value="BRANCH_ADMIN">BRANCH_ADMIN</option>
+                  <option value="HR">HR</option>
+                  <option value="MANAGER">MANAGER</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                  <svg
+                    className="fill-current h-4 w-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                  </svg>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="mb-8">
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Initial Password</label>
-            <input 
-              type="password" 
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+              {isEditMode
+                ? "New Password (leave blank to keep current)"
+                : "Initial Password"}
+            </label>
+            <input
+              type="password"
               name="password"
-              placeholder="Min 8 characters"
+              placeholder={
+                isEditMode ? "Leave blank to keep current" : "Min 8 characters"
+              }
               value={formData.password}
               onChange={handleChange}
-              required
+              required={!isEditMode}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm"
             />
           </div>
 
           <div className="flex items-center justify-end gap-3">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={onClose}
               className="px-6 py-2.5 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
             >
               Cancel
             </button>
-            <button 
+            <button
               type="submit"
               disabled={loading}
               className="px-6 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors disabled:opacity-50"
             >
-               {loading ? "Adding..." : "Provide Access"}
+              {loading
+                ? isEditMode
+                  ? "Saving..."
+                  : "Adding..."
+                : isEditMode
+                  ? "Save Changes"
+                  : "Provide Access"}
             </button>
           </div>
         </form>

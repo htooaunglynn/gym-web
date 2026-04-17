@@ -1,14 +1,25 @@
-import { Filter, Search, MoreHorizontal, User, Smartphone, CreditCard, ShoppingBag, Droplet, Monitor } from "lucide-react";
+import {
+  Filter,
+  Search,
+  MoreHorizontal,
+  ShoppingBag,
+  Droplet,
+  Monitor,
+} from "lucide-react";
 
-const activities = [
-  { id: "LOG_000076", activity: "Member App Login", type: "App", price: "Basic", status: "Completed", date: "17 Apr, 2026 03:45 PM", icon: Smartphone, color: "text-blue-500", bg: "bg-blue-50" },
-  { id: "LOG_000075", activity: "Membership Renew", type: "Billing", price: "$32.50", status: "Pending", date: "15 Apr, 2026 11:30 AM", icon: CreditCard, color: "text-indigo-500", bg: "bg-indigo-50" },
-  { id: "LOG_000074", activity: "Trainer Session", type: "Booking", price: "$40.00", status: "Completed", date: "15 Apr, 2026 12:00 PM", icon: User, color: "text-cyan-500", bg: "bg-cyan-50" },
-  { id: "LOG_000073", activity: "Supplements Buy", type: "Store", price: "$50.20", status: "In Progress", date: "14 Apr, 2026 09:15 PM", icon: ShoppingBag, color: "text-yellow-500", bg: "bg-yellow-50", selected: true },
-  { id: "LOG_000072", activity: "Equipment Maint.", type: "System", price: "$15.90", status: "Completed", date: "10 Apr, 2026 06:00 AM", icon: Monitor, color: "text-red-500", bg: "bg-red-50" },
-];
+interface InventoryActivity {
+  id: string;
+  movementType: "INCOMING" | "OUTGOING" | "ADJUSTMENT";
+  quantity: number;
+  reason: string;
+  occurredAt: string;
+}
 
-export function RecentActivityTable({ activities = [] }: { activities?: any[] }) {
+export function RecentActivityTable({
+  activities = [],
+}: {
+  activities?: InventoryActivity[];
+}) {
   return (
     <div className="bg-white rounded-3xl p-6 lg:p-8 shadow-sm border border-gray-100 flex flex-col h-full">
       {/* Header and Controls */}
@@ -51,7 +62,7 @@ export function RecentActivityTable({ activities = [] }: { activities?: any[] })
                 <td colSpan={7} className="py-8 text-center text-gray-400">No recent activity found.</td>
               </tr>
             ) : null}
-            {activities.map((item, idx) => (
+            {activities.map((item) => (
               <tr key={item.id} className={`border-b border-gray-50 hover:bg-gray-50/50 transition-colors`}>
                 <td className="py-4 px-2">
                   <input type="checkbox" readOnly className="w-4 h-4 rounded border-gray-300 cursor-pointer accent-gray-900 text-gray-900" style={{ borderRadius: '4px' }} />

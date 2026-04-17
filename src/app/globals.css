@@ -4,6 +4,8 @@
   --background: #ffffff;
   --foreground: #111111;
   --brand-primary: #E62A29;
+  --font-sans-stack: "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-heading-stack: "Arial Black", "Franklin Gothic Heavy", "Impact", "Avenir Next Condensed", sans-serif;
 }
 
 @theme {
@@ -12,8 +14,8 @@
   --color-dark-gray: #151515;
   --color-light-gray: #F5F5F5;
   
-  --font-sans: var(--font-inter);
-  --font-heading: var(--font-oswald);
+  --font-sans: var(--font-sans-stack);
+  --font-heading: var(--font-heading-stack);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -1,0 +1,197 @@
+## Backend Constraints for Frontend UI/UX
+
+Here's a comprehensive breakdown of gym-api backend constraints affecting frontend design:
+
+---
+
+### **1. Authentication & Authorization Model**
+
+**Auth Structure:**
+- JWT-based with `GlobalRole` + `BranchRole` per user
+- Auth types: `ADMIN` (global), `BRANCH_ADMIN`, `STAFF`, `HR`, `MANAGER`
+- Users can have multiple branch roles via `UserBranchRole` (unique constraint on userId+branchId)
+
+**Files:**
+- [auth/types/authenticated-user.type.ts](src/auth/types/authenticated-user.type.ts) – JWT payload structure
+- [auth/types/jwt-payload.type.ts](src/auth/types/jwt-payload.type.ts) – includes `sub`, `email`, `role`, `globalRole`, `branchId`
+
+**Frontend implications:**
+- Display UI conditionally based on `globalRole` and `branchId` context
+- Non-ADMIN users cannot query/access data outside their assigned branch
+
+---
+
+### **2. Role-Based Permissions & Features**
+
+**Permission Model:**
+- Features: 14 distinct permission features (BRANCHES, USERS, MEMBERS, TRAINERS, ATTENDANCE, EQUIPMENT, INVENTORY_MOVEMENTS, MEMBERSHIP_PLANS, MEMBER_SUBSCRIPTIONS, PRODUCTS, PRODUCT_SALES, ROLE_PERMISSIONS, BRANCH_USER_ASSIGNMENTS, SUBSCRIPTION_APPROVALS)
+- Actions: VIEW, CREATE_UPDATE, DELETE, MANAGE, APPROVE
+- Permissions are role-scoped at both global and branch level
+
+**Default Role Permissions:**
+- `ADMIN`: full access to all features and actions
+- `BRANCH_ADMIN`: business CRUD + user management + branch assignments + subscription approvals
+- `STAFF`: business CRUD only (members, trainers, attendance, equipment, inventory, plans, subscriptions, products, sales)
+- `HR`: business CRUD + subscription approvals
+- `MANAGER`: business CRUD + subscription approvals
+
+**Files:**
+- [auth/permissions/default-role-permissions.ts](src/auth/permissions/default-role-permissions.ts) – permission matrix definition
+
+**Frontend implications:**
+- Render action buttons/menus only for permitted features/actions
+- Hide entire feature sections for unauthorized roles
+- Use permission matrix to control create/edit/delete/approve buttons
+
+---
+
+### **3. Multitenancy & Branch Scoping**
+
+**Branch Context:**
+- All business resources (members, trainers, equipment, etc.) are scoped to branches
+- Users get branch-scoped data via `TenantContextService` (async local storage)
+- Pattern: `resolveBranchScope()` enforces branch isolation
+
+**Scoping Rules:**
+- Non-admin users: can only access their assigned branch
+- Admin users: can query specific branches or all branches (if `allowAdminUnscoped=true`)
+- Forbidden exceptions on cross-branch access attempts
+
+**Files:**
+- [multitenant/tenant-context.service.ts](src/multitenant/tenant-context.service.ts) – context management
+- [multitenant/types/tenant-context.type.ts](src/multitenant/types/tenant-context.type.ts)
+- [branches/branches.service.ts](src/branches/branches.service.ts#L167) – branch assignment logic
+
+**Frontend implications:**
+- Add branch selector for admin users
+- Limit member/trainer/equipment listings to current branch for non-admins
+- Pass `branchId` query param when filtering requires explicit branch override
+
+---
+
+### **4. Pagination & Query Patterns**
+
+**Pagination Contract:**
+- Query params: `page` (default 1, min 1) and `limit` (default 10, min 1, max 50)
+- Calculate backend skip/take: `skip = (page-1) * limit; take = limit`
+- Optional: `includeDeleted` (boolean flag for soft-deleted records)
+
+**Pagination Constants:**
+- `DEFAULT_PAGE = 1`
+- `DEFAULT_LIMIT = 10`
+- `MAX_LIMIT = 50`
+
+**Filters by Resource:**
+- **Members/Trainers/Equipment**: `branchId` (UUID), `includeDeleted`
+- **Attendance**: `memberId`, `trainerId`, `actorUserId`, `eventType` (MEMBER/TRAINER), `isCorrection`, `startDate`, `endDate`
+- **Member Subscriptions**: `memberId`, `planId`, `status` filters
+- **Product Sales**: `paymentStatus` filter
+
+**Files:**
+- [common/dto/pagination-query.dto.ts](src/common/dto/pagination-query.dto.ts) – base DTO with validation
+- [attendance/dto/find-all-attendance-events.dto.ts](src/attendance/dto/find-all-attendance-events.dto.ts) – extended filters
+- [trainers/dto/find-all-trainers.dto.ts](src/trainers/dto/find-all-trainers.dto.ts) – `includeMembers` flag
+
+**Frontend implications:**
+- Implement paginated tables with prev/next or page number controls (max 5 items/page practical limit given 50-page max)
+- Add filter UI for branchId, eventType, paymentStatus as applicable
+- Include soft-delete toggle in admin views
+
+---
+
+### **5. Validation & Error Handling**
+
+**Common Validation Constraints:**
+- Email: max 254 chars, RFC format
+- Names/Strings: max 100 chars
+- Descriptions: max 500 chars
+- Phone: 7-20 chars, pattern `/^[0-9+()\-\s]{7,20}$/`
+- Currency amounts: max 2 decimal places (Decimal(10,2) in DB)
+
+**Error Format:**
+- Uses NestJS exception hierarchy: `ConflictException`, `ForbiddenException`, `NotFoundException`
+- Conflict messages: `"Email or phone already exists"`, `"Member already has an active subscription"`
+- Forbidden: `"Branch context is required"`, `"Cannot query another branch"`
+- NotFound: `"{Resource} with id {id} was not found"`
+
+**Decimal Handling:**
+- Membership plans & products use `@IsDecimal({ decimal_digits: '1,2', force_decimal: false })`
+- Backend returns as Prisma.Decimal; frontend should treat as strings to avoid precision loss
+
+**Files:**
+- [common/constants/validation.ts](src/common/constants/validation.ts)
+- [common/prisma-error.util.ts](src/common/prisma-error.util.ts)
+- [products/dto/create-product.dto.ts](src/products/dto/create-product.dto.ts) – `unitPrice: @IsNumber({ maxDecimalPlaces: 2 })`
+- [membership-plans/dto/create-membership-plan.dto.ts](src/membership-plans/dto/create-membership-plan.dto.ts) – decimal validation
+
+**Frontend implications:**
+- Validate form inputs matching these constraints before submission
+- Display specific error messages from API responses
+- Treat decimal fields as text input to preserve precision (e.g., "9.99" not 9.99)
+
+---
+
+### **6. Date/Time & Currency Handling**
+
+**Database Timestamps:**
+- All resources have `createdAt` (default now), `updatedAt` (auto-update), `deletedAt` (soft delete)
+- Stored as DateTime in PostgreSQL
+
+**Billing & Currency:**
+- `BillingCycle`: WEEKLY, MONTHLY, QUARTERLY, YEARLY
+- Payment amounts: Decimal(10,2) – no currency symbol in DB, store as string to avoid float issues
+- `PaymentStatus`: PENDING, PAID, FAILED, REFUNDED
+- `PaymentMethod`: CASH, CARD, BANK_TRANSFER, ONLINE, OTHER
+
+**Files:**
+- [prisma/schema.prisma](prisma/schema.prisma) – BillingCycle, MembershipPlan.amount, Product.unitPrice
+
+**Frontend implications:**
+- Use ISO date strings for API communication
+- Display dates in user locale; format billing cycles as readable labels
+- Assume all monetary values are currency-agnostic; add UI layer for display formatting
+- Implement date range filters (startDate/endDate) for time-based queries
+
+---
+
+### **7. Key Resource Modules & Status Enums**
+
+| Module | Key Enums | Status/State | Notable Constraint |
+|--------|-----------|--------------|-------------------|
+| **Members** | — | Active/Deleted | Soft delete, trainer assignment |
+| **Trainers** | — | Active/Deleted | Can include members in query |
+| **Equipment** | `EquipmentCondition` (NEW, GOOD, FAIR, POOR) | Active/Deleted | Managed by users |
+| **Attendance** | `AttendanceEventType` (CHECK_IN, CHECK_OUT) | — | Per-member or per-trainer |
+| **Member Subscriptions** | `SubscriptionStatus` (ACTIVE, PAUSED, CANCELLED, EXPIRED) | — | Status transitions: ACTIVE→PAUSED/CANCELLED/EXPIRED; PAUSED/CANCELLED/EXPIRED→RENEW |
+| **Products** | — | Active/Deleted | SKU, unit price (max 2 decimals) |
+| **Product Sales** | `PaymentStatus` (PENDING, PAID, FAILED, REFUNDED), `PaymentMethod` | — | Line items with quantity tracking |
+| **Inventory** | `InventoryMovementType` (INCOMING, OUTGOING, ADJUSTMENT) | — | Auditable |
+
+**Subscription State Machine:**
+- UPDATE_ALLOWED_TRANSITIONS: `{ ACTIVE: [PAUSED, CANCELLED, EXPIRED], PAUSED: [CANCELLED, EXPIRED], CANCELLED: [], EXPIRED: [] }`
+- RENEW_ALLOWED_FROM: `[PAUSED, CANCELLED, EXPIRED]`
+- CANCEL_ALLOWED_FROM: `[ACTIVE, PAUSED]`
+
+**Files:**
+- [prisma/schema.prisma](prisma/schema.prisma) – lines 1-100 (enums)
+- [member-subscriptions/member-subscriptions.service.ts](src/member-subscriptions/member-subscriptions.service.ts#L79) – status transitions
+
+**Frontend implications:**
+- Render subscription status badges; disable invalid transitions (pause/resume/cancel buttons based on current status)
+- Show equipment condition badges (color-code: NEW=green, GOOD=blue, FAIR=yellow, POOR=red)
+- Track inventory movements as audit log
+- Handle payment method selection for sales; show payment status progress
+
+---
+
+### **Summary for Prompt Templates**
+
+**Core constraints to enforce in frontend:**
+1. **Auth**: Check JWT tokens contain `branchId` and `role` before allowing mutations
+2. **Permissions**: Pre-filter UI by `PermissionFeature + PermissionAction` before rendering forms
+3. **Multitenancy**: Always include `branchId` in list/create requests; enforce branch isolation
+4. **Pagination**: Default page=1, limit=10; cap UI at limit=50; validate on client before submission
+5. **Validation**: Validate email, phone, names, decimals client-side; match backend constraints
+6. **Errors**: Parse error messages to show user-friendly feedback (conflict, forbidden, not found)
+7. **Status**: Enforce valid state transitions (e.g., only ACTIVE subscriptions can pause)
+8. **Currency**: Display with locale formatting; submit/receive as decimal strings

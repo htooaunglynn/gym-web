@@ -2,23 +2,38 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
+
+interface MembershipPlan {
+  id: string;
+  name: string;
+  description: string;
+  amount: number;
+  billingCycle: string;
+  isActive: boolean;
+}
 
 interface PlanModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  plan?: any; // If provided, we are in EDIT mode
+  plan?: MembershipPlan;
 }
 
-export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) {
+export function PlanModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  plan,
+}: PlanModalProps) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     amount: "",
     billingCycle: "MONTHLY",
-    isActive: true
+    isActive: true,
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +44,7 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
         description: plan.description || "",
         amount: plan.amount?.toString() || "",
         billingCycle: plan.billingCycle || "MONTHLY",
-        isActive: plan.isActive !== undefined ? plan.isActive : true
+        isActive: plan.isActive !== undefined ? plan.isActive : true,
       });
     } else {
       setFormData({
@@ -37,18 +52,23 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
         description: "",
         amount: "",
         billingCycle: "MONTHLY",
-        isActive: true
+        isActive: true,
       });
     }
   }, [plan, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({ 
-      ...prev, 
-      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value 
+    setFormData((prev) => ({
+      ...prev,
+      [name]:
+        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
@@ -58,33 +78,21 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
     setError(null);
 
     try {
-      const token = localStorage.getItem("accessToken");
-      if (!token) throw new Error("No authorization token found. Please login.");
-
       const method = plan ? "PATCH" : "POST";
-      const url = plan 
-        ? `http://localhost:3000/api/v1/membership-plans/${plan.id}` 
-        : "http://localhost:3000/api/v1/membership-plans";
+      const path = plan ? `/membership-plans/${plan.id}` : "/membership-plans";
 
-      const res = await fetch(url, {
+      await apiClient(path, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
         body: JSON.stringify({
           ...formData,
-          amount: parseFloat(formData.amount)
-        })
+          amount: parseFloat(formData.amount),
+        }),
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || `Failed to ${plan ? 'update' : 'create'} plan`);
 
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -94,8 +102,10 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">{plan ? "Edit Plan" : "New Membership Plan"}</h2>
-          <button 
+          <h2 className="text-xl font-bold text-gray-900">
+            {plan ? "Edit Plan" : "New Membership Plan"}
+          </h2>
+          <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-900"
           >
@@ -111,9 +121,11 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
           )}
 
           <div className="mb-4">
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Plan Name</label>
-            <input 
-              type="text" 
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+              Plan Name
+            </label>
+            <input
+              type="text"
               name="name"
               placeholder="e.g. Monthly Standard"
               value={formData.name}
@@ -124,8 +136,10 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Description</label>
-            <textarea 
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+              Description
+            </label>
+            <textarea
               name="description"
               placeholder="What's included in this plan?"
               value={formData.description}
@@ -137,9 +151,11 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
 
           <div className="flex gap-4 mb-6">
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Amount ($)</label>
-              <input 
-                type="number" 
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Amount ($)
+              </label>
+              <input
+                type="number"
                 name="amount"
                 step="0.01"
                 min="0"
@@ -151,8 +167,10 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Billing Cycle</label>
-              <select 
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Billing Cycle
+              </label>
+              <select
                 name="billingCycle"
                 value={formData.billingCycle}
                 onChange={handleChange}
@@ -167,33 +185,36 @@ export function PlanModal({ isOpen, onClose, onSuccess, plan }: PlanModalProps) 
           </div>
 
           <div className="flex items-center gap-2 mb-8">
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               name="isActive"
               id="isActive"
               checked={formData.isActive}
               onChange={handleChange}
               className="w-4 h-4 rounded border-gray-300 accent-gray-900"
             />
-            <label htmlFor="isActive" className="text-sm font-semibold text-gray-700 cursor-pointer">
+            <label
+              htmlFor="isActive"
+              className="text-sm font-semibold text-gray-700 cursor-pointer"
+            >
               Active and visible on landing page
             </label>
           </div>
 
           <div className="flex items-center justify-end gap-3">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={onClose}
               className="px-6 py-2.5 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
             >
               Cancel
             </button>
-            <button 
+            <button
               type="submit"
               disabled={loading}
               className="px-6 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors disabled:opacity-50"
             >
-               {loading ? "Processing..." : plan ? "Update Plan" : "Create Plan"}
+              {loading ? "Processing..." : plan ? "Update Plan" : "Create Plan"}
             </button>
           </div>
         </form>

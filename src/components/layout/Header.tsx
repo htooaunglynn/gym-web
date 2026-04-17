@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, ShoppingCart, Menu, ChevronDown, Dumbbell, LogOut, User } from "lucide-react";
+import { Dumbbell, LogOut, User } from "lucide-react";
 
 export function Header() {
-  const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
+  const [user, setUser] = useState<{
+    firstName: string;
+    lastName: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -19,8 +22,8 @@ export function Header() {
       try {
         const res = await fetch("http://localhost:3000/api/v1/auth/me", {
           headers: {
-            "Authorization": `Bearer ${token}`
-          }
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         if (res.ok) {
@@ -51,20 +54,22 @@ export function Header() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <div className="text-3xl font-heading font-bold flex items-center">
-            FI<Dumbbell className="w-6 h-6 text-brand mx-0.5" strokeWidth={3} />KIT
+            FI
+            <Dumbbell className="w-6 h-6 text-brand mx-0.5" strokeWidth={3} />
+            KIT
           </div>
         </Link>
-        
+
         {/* Navigation - keeping your existing structure */}
-        
+
         {/* Actions */}
         <div className="flex items-center gap-6">
           {!isLoading && (
             <>
               {user ? (
                 <div className="flex items-center gap-5">
-                  <Link 
-                    href="/dashboard" 
+                  <Link
+                    href="/dashboard"
                     className="flex items-center gap-2 group hover:text-brand transition-colors"
                   >
                     <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center border border-brand/30">
@@ -74,7 +79,7 @@ export function Header() {
                       {user.firstName} {user.lastName}
                     </span>
                   </Link>
-                  <button 
+                  <button
                     onClick={handleLogout}
                     className="flex items-center gap-2 text-sm font-bold tracking-wide hover:text-brand transition-colors cursor-pointer"
                   >
@@ -83,8 +88,8 @@ export function Header() {
                   </button>
                 </div>
               ) : (
-                <Link 
-                  href="/login" 
+                <Link
+                  href="/login"
                   className="text-sm font-bold tracking-wide hover:text-brand transition-colors whitespace-nowrap"
                 >
                   LOG IN

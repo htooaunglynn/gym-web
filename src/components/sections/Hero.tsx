@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 
 export function Hero() {
@@ -63,10 +64,12 @@ export function Hero() {
         <div className="relative h-full hidden lg:flex justify-end items-end">
           <div className="absolute bottom-[-150px] right-0 w-[800px] h-auto z-10 object-contain pointer-events-none">
             {/* Real placeholder matching the muscular aesthetic */}
-            <img 
+            <Image
               src="https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=2670&auto=format&fit=crop" 
               alt="Muscular man lifting dumbells" 
               className="w-full h-full object-contain [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%)] contrast-125 saturate-50"
+              fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
             />
           </div>
         </div>

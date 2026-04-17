@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "e7ef7ac5-00c6-4baa-90f7-cfe1f3d6328f",
         "name": "Gym API",
-        "description": "Postman collection for gym-api (NestJS). Includes CRUD, attendance, inventory movements, membership plans, member subscriptions, products, product sales, and selected negative tests.\n\nRecommended run order:\n1) Authentication -> POST /auth/login (USER)\n2) Users -> create (captures userId)\n3) Trainers -> create (captures trainerId)\n4) Members -> create (captures memberId)\n5) Equipment / Attendance / Inventory Movements\n6) Membership Plans -> create (captures membershipPlanId)\n7) Member Subscriptions -> create (captures memberSubscriptionId), lifecycle, reports\n8) Products -> create (captures productId)\n9) Product Sales -> create (captures productSaleId), reports",
+        "description": "Postman collection for gym-api (NestJS). Includes auth, branches, permissions, CRUD modules, attendance, inventory movements, membership plans, member subscriptions, products, product sales, reports, and selected negative tests.\n\nPlatform mapping:\n- Web: Users\n- Mobile: Trainers, Members\n\nRecommended run order:\n1) Authentication -> POST /auth/login (USER)\n2) Users (Web) -> create (captures userId)\n3) Trainers (Mobile) -> create (captures trainerId)\n4) Members (Mobile) -> create (captures memberId)\n5) Equipment / Attendance / Inventory Movements\n6) Membership Plans -> create (captures membershipPlanId)\n7) Member Subscriptions -> create (captures memberSubscriptionId), lifecycle, reports\n8) Products -> create (captures productId)\n9) Product Sales -> create (captures productSaleId), reports\n10) Branches -> create (captures branchId), assignment and lifecycle\n11) Permissions -> me, roles, role details, upsert permissions",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "event": [
@@ -71,6 +71,14 @@
         {
             "key": "runSuffix",
             "value": ""
+        },
+        {
+            "key": "branchId",
+            "value": ""
+        },
+        {
+            "key": "memberAccessToken",
+            "value": ""
         }
     ],
     "item": [
@@ -98,10 +106,10 @@
         },
         {
             "name": "Authentication",
-            "description": "Run POST /auth/login (USER) first to populate {{accessToken}} for all protected folders.",
+            "description": "Authentication flows for Web and Mobile. Run POST /auth/login (USER - Web) first to populate {{accessToken}} for protected admin/user folders. Use POST /auth/login (MEMBER - Mobile) to populate {{memberAccessToken}} for member-specific/forbidden-path tests.",
             "item": [
                 {
-                    "name": "POST /auth/register/member",
+                    "name": "POST /auth/register/member (Mobile)",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -128,7 +136,31 @@
                     }
                 },
                 {
-                    "name": "POST /auth/login (USER)",
+                    "name": "POST /auth/login (MEMBER - Mobile)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/login",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "login"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"member.public+{{runSuffix}}@example.com\",\n  \"password\": \"MemberPass123!\",\n  \"accountType\": \"MEMBER\"\n}"
+                        }
+                    },
+                    "description": "Logs in with a mobile member account and stores memberAccessToken for deterministic 403 tests.",
                     "event": [
                         {
                             "listen": "test",
@@ -136,7 +168,27 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has accessToken', function () { pm.expect(json).to.have.property('accessToken'); });",
+                                    "if (json && json.accessToken) { pm.collectionVariables.set('memberAccessToken', json.accessToken); }"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "POST /auth/login (USER - Web)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has accessToken', function () { pm.expect(json).to.have.property('accessToken'); });",
                                     "if (json && json.accessToken) { pm.collectionVariables.set('accessToken', json.accessToken); }"
                                 ]
                             }
@@ -191,7 +243,8 @@
             ]
         },
         {
-            "name": "Users",
+            "name": "Users (Web)",
+            "description": "Web app user management APIs.",
             "auth": {
                 "type": "bearer",
                 "bearer": [
@@ -212,7 +265,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('userId', json.id); }"
                                 ]
                             }
@@ -444,11 +499,870 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "NEGATIVE GET /users - missing bearer token",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/users?page=1&limit=10&includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /users/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/users/00000000-0000-0000-0000-000000000000?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users",
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect NotFound for a non-existing id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
         {
-            "name": "Trainers",
+            "name": "Branches",
+            "description": "Branch management and user assignment flow. Requires {{userId}} from Users create and captures {{branchId}}.",
+            "auth": {
+                "type": "bearer",
+                "bearer": [
+                    {
+                        "key": "token",
+                        "value": "{{accessToken}}",
+                        "type": "string"
+                    }
+                ]
+            },
+            "item": [
+                {
+                    "name": "POST /branches - create",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Downtown {{runSuffix}}\",\n  \"description\": \"Main branch {{runSuffix}}\"\n}"
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
+                                    "if (json && json.id) { pm.collectionVariables.set('branchId', json.id); }"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "GET /branches/mine",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/mine",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "mine"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /branches",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches?page=1&limit=10&includeDeleted=false&includeUsers=true",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "includeUsers",
+                                    "value": "true"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /branches/:id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH /branches/:id",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"description\": \"Updated branch description {{runSuffix}}\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "POST /branches/:id/users",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}",
+                                "users"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"role\": \"STAFF\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /branches/:id/users/:userId",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}/users/{{userId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}",
+                                "users",
+                                "{{userId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /branches/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE GET /branches/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/00000000-0000-0000-0000-000000000000?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect NotFound for a non-existing branch id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE POST /branches - missing bearer token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Unauthorized Branch\"\n}"
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE POST /branches - forbidden for member",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Forbidden Branch {{runSuffix}}\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{memberAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect Forbidden for low-privilege member token on admin-only branch creation.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE POST /branches/:id/users - forbidden for member",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}",
+                                "users"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"role\": \"STAFF\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{memberAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect Forbidden for low-privilege member token on branch assignment management.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /branches - forbidden for member",
+                    "description": "Expect Forbidden for low-privilege member token on admin-only branch listing.",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches?page=1&limit=10&includeDeleted=false&includeUsers=true",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "includeUsers",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{memberAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE DELETE /branches/:id - forbidden for member",
+                    "description": "Expect Forbidden for low-privilege member token on admin-only branch deletion.",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}"
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{memberAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Permissions",
+            "description": "Role permission matrix APIs. Some routes require ROLE_PERMISSIONS permissions.",
+            "auth": {
+                "type": "bearer",
+                "bearer": [
+                    {
+                        "key": "token",
+                        "value": "{{accessToken}}",
+                        "type": "string"
+                    }
+                ]
+            },
+            "item": [
+                {
+                    "name": "GET /permissions/me",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/me?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "me"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /permissions/roles",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /permissions/roles/:role",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles/STAFF?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles",
+                                "STAFF"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /permissions/roles/:role",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles/STAFF?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles",
+                                "STAFF"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"branchId\": \"{{branchId}}\",\n  \"permissions\": [\n    {\n      \"feature\": \"MEMBERS\",\n      \"actions\": [\n        \"VIEW\",\n        \"CREATE_UPDATE\"\n      ]\n    },\n    {\n      \"feature\": \"PRODUCT_SALES\",\n      \"actions\": [\n        \"VIEW\"\n      ]\n    }\n  ]\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE GET /permissions/roles/:role - invalid role",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles/INVALID?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles",
+                                "INVALID"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect validation error for unsupported role enum value.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 400', function () { pm.response.to.have.status(400); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /permissions/me - missing bearer token",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/me?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "me"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /permissions/roles - forbidden for member",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{memberAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect Forbidden for low-privilege member token without ROLE_PERMISSIONS view access.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE PUT /permissions/roles/:role - forbidden for member",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles/STAFF?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles",
+                                "STAFF"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"branchId\": \"{{branchId}}\",\n  \"permissions\": [\n    {\n      \"feature\": \"MEMBERS\",\n      \"actions\": [\n        \"VIEW\"\n      ]\n    }\n  ]\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{memberAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect Forbidden for low-privilege member token on permission updates.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Trainers (Mobile)",
+            "description": "Mobile app trainer management APIs.",
             "auth": {
                 "type": "bearer",
                 "bearer": [
@@ -469,7 +1383,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('trainerId', json.id); }"
                                 ]
                             }
@@ -601,11 +1517,100 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "NEGATIVE GET /trainers - missing bearer token",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/trainers?page=1&limit=10&includeDeleted=false&includeMembers=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "trainers"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "includeMembers",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /trainers/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/trainers/00000000-0000-0000-0000-000000000000?includeDeleted=false&includeMembers=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "trainers",
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "includeMembers",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect NotFound for a non-existing id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
         {
-            "name": "Members",
+            "name": "Members (Mobile)",
+            "description": "Mobile app member management APIs.",
             "auth": {
                 "type": "bearer",
                 "bearer": [
@@ -626,7 +1631,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('memberId', json.id); }"
                                 ]
                             }
@@ -750,6 +1757,86 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "NEGATIVE GET /members - missing bearer token",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/members?page=1&limit=10&includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "members"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /members/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/members/00000000-0000-0000-0000-000000000000?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "members",
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect NotFound for a non-existing id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -775,7 +1862,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('equipmentId', json.id); }"
                                 ]
                             }
@@ -936,6 +2025,86 @@
                             ]
                         }
                     }
+                },
+                {
+                    "name": "NEGATIVE GET /equipment - missing bearer token",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/equipment?page=1&limit=10&includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "equipment"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /equipment/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/equipment/00000000-0000-0000-0000-000000000000?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "equipment",
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        }
+                    },
+                    "description": "Expect NotFound for a non-existing id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -961,7 +2130,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('attendanceEventId', json.id); }"
                                 ]
                             }
@@ -973,10 +2144,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "body": {
@@ -1003,10 +2170,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "body": {
@@ -1033,10 +2196,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "body": {
@@ -1182,7 +2341,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('inventoryMovementId', json.id); }"
                                 ]
                             }
@@ -1194,10 +2355,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "body": {
@@ -1224,10 +2381,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "body": {
@@ -1254,10 +2407,6 @@
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
-                            },
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
                             }
                         ],
                         "body": {
@@ -1396,7 +2545,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('membershipPlanId', json.id); }"
                                 ]
                             }
@@ -1412,7 +2563,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"name\": \"Monthly Standard {{runSuffix}}\",\n  \"description\": \"Standard monthly gym plan\",\n  \"amount\": \"79.99\",\n  \"billingCycle\": \"MONTHLY\",\n  \"isActive\": true\n}"
+                            "raw": "{\n  \"name\": \"Monthly Standard {{runSuffix}}\",\n  \"description\": \"Standard monthly gym plan\",\n  \"amount\": 79.99,\n  \"billingCycle\": \"MONTHLY\",\n  \"isActive\": true\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/membership-plans",
@@ -1494,8 +2645,25 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"description\": \"Updated plan description\",\n  \"amount\": \"89.99\",\n  \"isActive\": true\n}"
+                            "raw": "{\n  \"description\": \"Updated plan description\",\n  \"amount\": 89.99,\n  \"isActive\": true\n}"
                         },
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans/{{membershipPlanId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans",
+                                "{{membershipPlanId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE /membership-plans/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
                         "url": {
                             "raw": "{{baseUrl}}/membership-plans/{{membershipPlanId}}",
                             "host": [
@@ -1545,21 +2713,88 @@
                     }
                 },
                 {
-                    "name": "DELETE /membership-plans/:id",
+                    "name": "NEGATIVE GET /membership-plans - missing bearer token",
                     "request": {
-                        "method": "DELETE",
+                        "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{baseUrl}}/membership-plans/{{membershipPlanId}}",
+                            "raw": "{{baseUrl}}/membership-plans?page=1&limit=10&includeDeleted=false&isActive=true",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "membership-plans"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "isActive",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /membership-plans/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/membership-plans/00000000-0000-0000-0000-000000000000?includeDeleted=false",
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "path": [
                                 "membership-plans",
-                                "{{membershipPlanId}}"
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
                             ]
                         }
-                    }
+                    },
+                    "description": "Expect NotFound for a non-existing id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -1586,7 +2821,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('memberSubscriptionId', json.id); }"
                                 ]
                             }
@@ -1784,6 +3021,188 @@
                     }
                 },
                 {
+                    "name": "GET /member-subscriptions/reports/active-by-plan",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/reports/active-by-plan",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "reports",
+                                "active-by-plan"
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response is object or array', function () { pm.expect(['object', 'array']).to.include(typeof json); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "GET /member-subscriptions/reports/expiring",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/reports/expiring?days=30",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "reports",
+                                "expiring"
+                            ],
+                            "query": [
+                                {
+                                    "key": "days",
+                                    "value": "30"
+                                }
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response is object or array', function () { pm.expect(['object', 'array']).to.include(typeof json); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "GET /member-subscriptions/reports/monthly-revenue-estimate",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/reports/monthly-revenue-estimate",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "reports",
+                                "monthly-revenue-estimate"
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response is object or array', function () { pm.expect(['object', 'array']).to.include(typeof json); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "DELETE /member-subscriptions/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"note\": \"Cleanup subscription\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /member-subscriptions/:id/renew",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}/renew",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}",
+                                "renew"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"startDate\": \"2026-05-01T00:00:00.000Z\",\n  \"paymentStatus\": \"PAID\",\n  \"paymentMethod\": \"CARD\",\n  \"paymentReference\": \"renew-ref-{{runSuffix}}\",\n  \"paidAt\": \"2026-05-01T00:00:00.000Z\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "POST /member-subscriptions/:id/expire",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}/expire",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "member-subscriptions",
+                                "{{memberSubscriptionId}}",
+                                "expire"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        }
+                    }
+                },
+                {
                     "name": "NEGATIVE POST /member-subscriptions/:id/resume - conflict after cancel",
                     "event": [
                         {
@@ -1822,90 +3241,43 @@
                     }
                 },
                 {
-                    "name": "GET /member-subscriptions/reports/active-by-plan",
+                    "name": "NEGATIVE POST /member-subscriptions/:id/expire - invalid id",
                     "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/member-subscriptions/reports/active-by-plan",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "member-subscriptions",
-                                "reports",
-                                "active-by-plan"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "GET /member-subscriptions/reports/expiring",
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/member-subscriptions/reports/expiring?days=30",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "member-subscriptions",
-                                "reports",
-                                "expiring"
-                            ],
-                            "query": [
-                                {
-                                    "key": "days",
-                                    "value": "30"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "GET /member-subscriptions/reports/monthly-revenue-estimate",
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/member-subscriptions/reports/monthly-revenue-estimate",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "member-subscriptions",
-                                "reports",
-                                "monthly-revenue-estimate"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "DELETE /member-subscriptions/:id",
-                    "request": {
-                        "method": "DELETE",
+                        "method": "POST",
                         "header": [
                             {
                                 "key": "Content-Type",
                                 "value": "application/json"
                             }
                         ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"note\": \"Cleanup subscription\"\n}"
-                        },
                         "url": {
-                            "raw": "{{baseUrl}}/member-subscriptions/{{memberSubscriptionId}}",
+                            "raw": "{{baseUrl}}/member-subscriptions/00000000-0000-0000-0000-000000000000/expire",
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "path": [
                                 "member-subscriptions",
-                                "{{memberSubscriptionId}}"
+                                "00000000-0000-0000-0000-000000000000",
+                                "expire"
                             ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
                         }
-                    }
+                    },
+                    "description": "Expect NotFound for a non-existing subscription id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -1932,7 +3304,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('productId', json.id); }"
                                 ]
                             }
@@ -2045,6 +3419,23 @@
                     }
                 },
                 {
+                    "name": "DELETE /products/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "NEGATIVE POST /products - duplicate SKU",
                     "event": [
                         {
@@ -2081,21 +3472,88 @@
                     }
                 },
                 {
-                    "name": "DELETE /products/:id",
+                    "name": "NEGATIVE GET /products - missing bearer token",
                     "request": {
-                        "method": "DELETE",
+                        "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "raw": "{{baseUrl}}/products?page=1&limit=10&includeDeleted=false&onlyActive=true",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "onlyActive",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /products/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/products/00000000-0000-0000-0000-000000000000?includeDeleted=false",
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "path": [
                                 "products",
-                                "{{productId}}"
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
                             ]
                         }
-                    }
+                    },
+                    "description": "Expect NotFound for a non-existing id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -2122,7 +3580,9 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
-                                    "var json = pm.response.json();",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
                                     "if (json && json.id) { pm.collectionVariables.set('productSaleId', json.id); }"
                                 ]
                             }
@@ -2276,7 +3736,21 @@
                                 }
                             ]
                         }
-                    }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response is object or array', function () { pm.expect(['object', 'array']).to.include(typeof json); });"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "GET /product-sales/reports/top-products",
@@ -2310,6 +3784,37 @@
                                     "key": "topLimit",
                                     "value": "5"
                                 }
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response is object or array', function () { pm.expect(['object', 'array']).to.include(typeof json); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "DELETE /product-sales/:id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales/{{productSaleId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales",
+                                "{{productSaleId}}"
                             ]
                         }
                     }
@@ -2351,21 +3856,92 @@
                     }
                 },
                 {
-                    "name": "DELETE /product-sales/:id",
+                    "name": "NEGATIVE GET /product-sales - missing bearer token",
                     "request": {
-                        "method": "DELETE",
+                        "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "{{baseUrl}}/product-sales/{{productSaleId}}",
+                            "raw": "{{baseUrl}}/product-sales?page=1&limit=10&includeDeleted=false&memberId={{memberId}}&paymentStatus=PAID",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "product-sales"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "memberId",
+                                    "value": "{{memberId}}"
+                                },
+                                {
+                                    "key": "paymentStatus",
+                                    "value": "PAID"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "noauth"
+                        }
+                    },
+                    "description": "Expect Unauthorized when access token is not provided.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 401', function () { pm.response.to.have.status(401); });"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "NEGATIVE GET /product-sales/:id - invalid id",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/product-sales/00000000-0000-0000-0000-000000000000?includeDeleted=false",
                             "host": [
                                 "{{baseUrl}}"
                             ],
                             "path": [
                                 "product-sales",
-                                "{{productSaleId}}"
+                                "00000000-0000-0000-0000-000000000000"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
                             ]
                         }
-                    }
+                    },
+                    "description": "Expect NotFound for a non-existing id.",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 404', function () { pm.response.to.have.status(404); });"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         }

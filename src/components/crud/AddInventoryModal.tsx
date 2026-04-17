@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
 
 interface AddInventoryModalProps {
   isOpen: boolean;
@@ -9,41 +10,67 @@ interface AddInventoryModalProps {
   onSuccess: () => void;
 }
 
-export function AddInventoryModal({ isOpen, onClose, onSuccess }: AddInventoryModalProps) {
-  const [actionType, setActionType] = useState<"incoming" | "outgoing" | "adjustments">("incoming");
-  
+export function AddInventoryModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: AddInventoryModalProps) {
+  const [actionType, setActionType] = useState<
+    "incoming" | "outgoing" | "adjustments"
+  >("incoming");
+
   const [formData, setFormData] = useState({
     equipmentId: "",
     quantity: "1",
     occurredAt: new Date().toISOString().slice(0, 16),
     reason: "",
-    note: ""
+    note: "",
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quantityError, setQuantityError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    if (e.target.name === "quantity") {
+      setQuantityError(null);
+    }
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Client-side quantity validation — requirement 8.6
+    const parsedQty = parseInt(formData.quantity, 10);
+    if (isNaN(parsedQty) || parsedQty < 1) {
+      setQuantityError("Quantity must be at least 1.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const token = localStorage.getItem("accessToken");
-      if (!token) throw new Error("No authorization token found. Please login.");
-
       // Base payload
-      const payload: any = {
+      const payload: {
+        equipmentId: string;
+        occurredAt: string;
+        reason: string;
+        note: string;
+        quantity?: number;
+        targetQuantity?: number;
+      } = {
         equipmentId: formData.equipmentId,
         occurredAt: new Date(formData.occurredAt).toISOString(),
         reason: formData.reason,
-        note: formData.note
+        note: formData.note,
       };
 
       // Adjustments API specifically wants `targetQuantity` instead of `quantity`
@@ -53,32 +80,23 @@ export function AddInventoryModal({ isOpen, onClose, onSuccess }: AddInventoryMo
         payload.quantity = parseInt(formData.quantity, 10);
       }
 
-      // The URL changes dynamically based on the selected actionType
-      const url = `http://localhost:3000/api/v1/inventory-movements/${actionType}`;
-
-      const res = await fetch(url, {
+      await apiClient(`/inventory-movements/${actionType}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || `Failed to process ${actionType}`);
 
       setFormData({
         equipmentId: "",
         quantity: "1",
         occurredAt: new Date().toISOString().slice(0, 16),
         reason: "",
-        note: ""
+        note: "",
       });
+      setQuantityError(null);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -89,7 +107,7 @@ export function AddInventoryModal({ isOpen, onClose, onSuccess }: AddInventoryMo
       <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden shadow-black/10">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">Record Movement</h2>
-          <button 
+          <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-900"
           >
@@ -130,9 +148,11 @@ export function AddInventoryModal({ isOpen, onClose, onSuccess }: AddInventoryMo
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Equipment ID Target</label>
-            <input 
-              type="text" 
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+              Equipment ID Target
+            </label>
+            <input
+              type="text"
               name="equipmentId"
               placeholder="UUID"
               value={formData.equipmentId}
@@ -147,20 +167,25 @@ export function AddInventoryModal({ isOpen, onClose, onSuccess }: AddInventoryMo
               <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
                 {actionType === "adjustments" ? "Target Qty" : "Quantity"}
               </label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 name="quantity"
-                min="0"
+                min="1"
                 value={formData.quantity}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm font-mono"
+                className={`w-full px-4 py-2.5 rounded-xl border focus:outline-none transition-colors text-sm font-mono ${quantityError ? "border-red-400 focus:border-red-500" : "border-gray-200 focus:border-gray-900"}`}
               />
+              {quantityError && (
+                <p className="mt-1 text-xs text-red-600">{quantityError}</p>
+              )}
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Timestamp</label>
-              <input 
-                type="datetime-local" 
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+                Timestamp
+              </label>
+              <input
+                type="datetime-local"
                 name="occurredAt"
                 value={formData.occurredAt}
                 onChange={handleChange}
@@ -171,9 +196,11 @@ export function AddInventoryModal({ isOpen, onClose, onSuccess }: AddInventoryMo
           </div>
 
           <div className="mb-6">
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Reason</label>
-            <input 
-              type="text" 
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
+              Reason
+            </label>
+            <input
+              type="text"
               name="reason"
               placeholder="e.g. Restock, Session Use"
               value={formData.reason}
@@ -184,19 +211,19 @@ export function AddInventoryModal({ isOpen, onClose, onSuccess }: AddInventoryMo
           </div>
 
           <div className="flex items-center justify-end gap-3">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={onClose}
               className="px-6 py-2.5 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
             >
               Cancel
             </button>
-            <button 
+            <button
               type="submit"
               disabled={loading}
               className="px-6 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors disabled:opacity-50"
             >
-               {loading ? "Recording..." : "Save Route"}
+              {loading ? "Recording..." : "Save Route"}
             </button>
           </div>
         </form>

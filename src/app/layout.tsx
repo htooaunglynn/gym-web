@@ -1,16 +1,8 @@
 import type { Metadata } from "next";
-import { Inter, Oswald } from "next/font/google";
 import "./globals.css";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const oswald = Oswald({
-  variable: "--font-oswald",
-  subsets: ["latin"],
-});
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ToastProvider } from "@/contexts/ToastContext";
+import { ToastContainer } from "@/components/shared/Toast";
 
 export const metadata: Metadata = {
   title: "FIYKIT | Your Fitness Your Victory",
@@ -24,8 +16,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
-      <body suppressHydrationWarning className={`${inter.variable} ${oswald.variable} antialiased min-h-screen flex flex-col font-sans`}>
-        {children}
+      <body
+        suppressHydrationWarning
+        className="antialiased min-h-screen flex flex-col font-sans"
+      >
+        <ToastProvider>
+          <AuthProvider>{children}</AuthProvider>
+          <ToastContainer />
+        </ToastProvider>
       </body>
     </html>
   );

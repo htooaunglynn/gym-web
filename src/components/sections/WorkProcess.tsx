@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export function WorkProcess() {
   const steps = [
     {
@@ -49,10 +51,12 @@ export function WorkProcess() {
               
               {/* Circular Image wrapper */}
               <div className="w-[240px] h-[240px] rounded-full overflow-hidden mb-8 border-[12px] border-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] relative">
-                <img 
+                <Image
                   src={step.image} 
                   alt={step.title} 
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  fill
+                  sizes="(min-width: 768px) 30vw, 80vw"
                 />
                 
                 {/* Number Badge floating on bottom of circle */}
