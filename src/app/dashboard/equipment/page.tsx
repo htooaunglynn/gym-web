@@ -3,12 +3,18 @@
 import { useEffect, useState } from "react";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { AddEquipmentModal } from "@/components/crud/AddEquipmentModal";
+import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/contexts/ToastContext";
+import {
+    ALL_BRANCHES_READONLY_MESSAGE,
+    isAllBranchesScope,
+} from "@/lib/branchScope";
 import {
     apiClient,
     normalizeListResponse,
@@ -25,6 +31,7 @@ interface Equipment {
 }
 
 export default function EquipmentPage() {
+    const { user, activeBranchId } = useAuth();
     const [rows, setRows] = useState<Equipment[]>([]);
     const [meta, setMeta] = useState({
         totalItems: 0,
@@ -51,6 +58,7 @@ export default function EquipmentPage() {
     const canEdit = usePermission("EQUIPMENT", "CREATE_UPDATE");
     const canDelete = usePermission("EQUIPMENT", "DELETE");
     const { showToast } = useToast();
+    const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -158,13 +166,13 @@ export default function EquipmentPage() {
 
     // Build actions array based on permissions
     const actions = [
-        canEdit
+        canEdit && !isAllBranchesMode
             ? {
                 label: "Edit Details",
                 onClick: (row: Equipment) => handleOpenEdit(row),
             }
             : null,
-        canDelete
+        canDelete && !isAllBranchesMode
             ? {
                 label: "Remove",
                 onClick: (row: Equipment) => setConfirmDelete(row),
@@ -194,14 +202,21 @@ export default function EquipmentPage() {
                         action="CREATE_UPDATE"
                         fallback={null}
                     >
-                        <button
-                            onClick={handleOpenCreate}
-                            className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
-                        >
-                            + Add Equipment
-                        </button>
+                        {!isAllBranchesMode ? (
+                            <button
+                                onClick={handleOpenCreate}
+                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
+                            >
+                                + Add Equipment
+                            </button>
+                        ) : null}
                     </PermissionGuard>
                 </div>
+
+                <BranchScopeNotice
+                    isVisible={isAllBranchesMode}
+                    message={ALL_BRANCHES_READONLY_MESSAGE}
+                />
 
                 <DataTable
                     columns={columns}

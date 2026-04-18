@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Users,
   UserCog,
-  Calendar,
   Package,
   LogOut,
   HelpCircle,
@@ -101,12 +100,6 @@ export function Sidebar() {
       icon: Package,
       label: "Equipment",
       feature: "EQUIPMENT",
-    },
-    {
-      href: "/dashboard/attendance",
-      icon: Calendar,
-      label: "Attendance",
-      feature: "ATTENDANCE",
     },
     {
       href: "/dashboard/inventory",

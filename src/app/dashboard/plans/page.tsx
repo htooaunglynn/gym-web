@@ -3,11 +3,17 @@
 import { useEffect, useState } from "react";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { PlanModal } from "@/components/dashboard/PlanModal";
+import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/contexts/ToastContext";
+import {
+    ALL_BRANCHES_READONLY_MESSAGE,
+    isAllBranchesScope,
+} from "@/lib/branchScope";
 import { Plus } from "lucide-react";
 import {
     apiClient,
@@ -17,6 +23,7 @@ import {
 import type { MembershipPlan } from "@/types/membership-plan";
 
 export default function PlansPage() {
+    const { user, activeBranchId } = useAuth();
     const [plans, setPlans] = useState<MembershipPlan[]>([]);
     const [meta, setMeta] = useState({
         totalItems: 0,
@@ -38,6 +45,7 @@ export default function PlansPage() {
     const canEdit = usePermission("MEMBERSHIP_PLANS", "CREATE_UPDATE");
     const canDelete = usePermission("MEMBERSHIP_PLANS", "DELETE");
     const { showToast } = useToast();
+    const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const fetchPlans = async (currentPage = page) => {
         setIsLoading(true);
@@ -159,7 +167,7 @@ export default function PlansPage() {
 
     // Build actions array based on permissions — only include actions the user can perform
     const actions = [
-        canEdit
+        canEdit && !isAllBranchesMode
             ? {
                 label: "Edit Plan",
                 onClick: (row: MembershipPlan) => {
@@ -168,7 +176,7 @@ export default function PlansPage() {
                 },
             }
             : null,
-        canDelete
+        canDelete && !isAllBranchesMode
             ? {
                 label: "Delete",
                 onClick: (row: MembershipPlan) => setConfirmDelete(row),
@@ -198,18 +206,25 @@ export default function PlansPage() {
                         action="CREATE_UPDATE"
                         fallback={null}
                     >
-                        <button
-                            onClick={() => {
-                                setSelectedPlan(undefined);
-                                setIsModalOpen(true);
-                            }}
-                            className="bg-[#E84C4C] hover:bg-[#d43f3f] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-[#E84C4C]/20 transition-all flex items-center gap-2"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Create Plan
-                        </button>
+                        {!isAllBranchesMode ? (
+                            <button
+                                onClick={() => {
+                                    setSelectedPlan(undefined);
+                                    setIsModalOpen(true);
+                                }}
+                                className="bg-[#E84C4C] hover:bg-[#d43f3f] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-[#E84C4C]/20 transition-all flex items-center gap-2"
+                            >
+                                <Plus className="w-5 h-5" />
+                                Create Plan
+                            </button>
+                        ) : null}
                     </PermissionGuard>
                 </div>
+
+                <BranchScopeNotice
+                    isVisible={isAllBranchesMode}
+                    message={ALL_BRANCHES_READONLY_MESSAGE}
+                />
 
                 <DataTable
                     columns={columns}

@@ -5,6 +5,8 @@ import { Building2, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, normalizeListResponse } from "@/lib/apiClient";
 
+const ALL_BRANCHES_OPTION_VALUE = "__all_branches__";
+
 interface Branch {
     id: string;
     name: string;
@@ -20,7 +22,7 @@ function normaliseBranch(raw: Record<string, unknown>): Branch {
 
 /**
  * ADMIN-only branch switcher rendered in the TopHeader.
- * Fetches GET /branches/mine via apiClient and calls setActiveBranchId on
+ * Fetches GET /branches via apiClient and calls setActiveBranchId on
  * selection (Requirements 3.10, 17.8).
  *
  * Returns null for non-ADMIN users so it can be rendered unconditionally.
@@ -49,7 +51,7 @@ export function BranchSwitcher() {
                 // The endpoint may return an array or a paginated response
                 const res = await apiClient<
                     Record<string, unknown>[] | { data: Record<string, unknown>[] }
-                >("/branches/mine");
+                >("/branches");
                 const raw = normalizeListResponse(res).data;
                 setBranches(raw.map(normaliseBranch));
             } catch {
@@ -73,20 +75,19 @@ export function BranchSwitcher() {
             ) : (
                 <div className="relative">
                     <select
-                        value={activeBranchId ?? ""}
+                        value={activeBranchId ?? ALL_BRANCHES_OPTION_VALUE}
                         onChange={(e) => {
-                            if (e.target.value) {
-                                setActiveBranchId(e.target.value);
+                            if (e.target.value === ALL_BRANCHES_OPTION_VALUE) {
+                                setActiveBranchId(null);
+                                return;
                             }
+
+                            setActiveBranchId(e.target.value);
                         }}
                         className="appearance-none pl-3 pr-8 py-1.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#435ee5] focus:border-transparent cursor-pointer transition-colors"
                         aria-label="Switch active branch"
                     >
-                        {branches.length === 0 && (
-                            <option value="" disabled>
-                                No branches
-                            </option>
-                        )}
+                        <option value={ALL_BRANCHES_OPTION_VALUE}>All branches</option>
                         {branches.map((branch, index) => (
                             <option key={branch.id || index} value={branch.id}>
                                 {branch.name}

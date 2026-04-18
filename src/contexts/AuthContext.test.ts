@@ -15,8 +15,10 @@ import type { GlobalRole } from "./AuthContext";
 interface JwtPayload {
   sub: string;
   email: string;
+  role?: GlobalRole;
   globalRole: GlobalRole;
   branchId: string | null;
+  isAdmin?: boolean;
   iat: number;
   exp: number;
 }
@@ -84,8 +86,10 @@ describe("decodeJwt – unit tests", () => {
     const payload = {
       sub: "user-123",
       email: "admin@gym.com",
+      role: "ADMIN" as GlobalRole,
       globalRole: "ADMIN" as GlobalRole,
       branchId: "branch-456",
+      isAdmin: true,
       iat: Math.floor(Date.now() / 1000),
       exp: futureExp(),
     };
@@ -103,8 +107,10 @@ describe("decodeJwt – unit tests", () => {
     const token = makeJwt({
       sub: "u1",
       email: "x@y.com",
+      role: "ADMIN",
       globalRole: "ADMIN",
       branchId: null,
+      isAdmin: true,
       iat: 0,
       exp: futureExp(),
     });
@@ -117,8 +123,10 @@ describe("decodeJwt – unit tests", () => {
     const token = makeJwt({
       sub: "u1",
       email: "x@y.com",
+      role: "STAFF",
       globalRole: "STAFF",
       branchId: null,
+      isAdmin: false,
       iat: 0,
       // no exp
     });
@@ -140,8 +148,10 @@ describe("Property 3 – JWT payload fields survive decode round-trip", () => {
         fc.record({
           sub: fc.uuid(),
           email: fc.emailAddress(),
+          role: fc.constantFrom(...ROLES),
           globalRole: fc.constantFrom(...ROLES),
           branchId: fc.oneof(fc.uuid(), fc.constant(null)),
+          isAdmin: fc.boolean(),
           iat: fc.integer({ min: 0, max: Math.floor(Date.now() / 1000) }),
           exp: fc.constant(futureExp()),
         }),
@@ -166,8 +176,10 @@ describe("Property 3 – JWT payload fields survive decode round-trip", () => {
         fc.record({
           sub: fc.uuid(),
           email: fc.emailAddress(),
+          role: fc.constantFrom(...ROLES),
           globalRole: fc.constantFrom(...ROLES),
           branchId: fc.oneof(fc.uuid(), fc.constant(null)),
+          isAdmin: fc.boolean(),
           iat: fc.integer({ min: 0, max: 1000 }),
           exp: fc.integer({ min: 1, max: Math.floor(Date.now() / 1000) - 1 }),
         }),

@@ -13,11 +13,13 @@ import {
     normalizeListResponse,
     PaginationResponse,
 } from "@/lib/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
 
 // ─── Page Component ───────────────────────────────────────────────────────────
 
 export default function BranchesPage() {
+    const { user } = useAuth();
     // ── State ──────────────────────────────────────────────────────────────────
     const [rows, setRows] = useState<Branch[]>([]);
     const [meta, setMeta] = useState({
@@ -46,12 +48,13 @@ export default function BranchesPage() {
     const [isDeleting, setIsDeleting] = useState(false);
 
     // ── Permissions ────────────────────────────────────────────────────────────
-    const canCreateUpdate = usePermission("BRANCHES", "CREATE_UPDATE");
-    const canDelete = usePermission("BRANCHES", "DELETE");
+    const canUpdate = usePermission("BRANCHES", "CREATE_UPDATE");
     const canManageAssignments = usePermission(
         "BRANCH_USER_ASSIGNMENTS",
         "MANAGE",
     );
+    const canCreateBranch = user?.globalRole === "ADMIN";
+    const canDelete = user?.globalRole === "ADMIN";
 
     // ── Data Fetch ─────────────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
@@ -134,7 +137,7 @@ export default function BranchesPage() {
 
     // ── Actions ────────────────────────────────────────────────────────────────
     const actions = [
-        ...(canCreateUpdate
+        ...(canUpdate
             ? [
                 {
                     label: "Edit",
@@ -184,7 +187,7 @@ export default function BranchesPage() {
                     </div>
 
                     {/* Add Branch — guarded by CREATE_UPDATE */}
-                    {canCreateUpdate && (
+                    {canCreateBranch && (
                         <button
                             onClick={() => {
                                 setSelectedBranch(undefined);
@@ -207,7 +210,7 @@ export default function BranchesPage() {
                     emptyState={
                         <div className="flex flex-col items-center gap-2 py-4">
                             <p className="text-gray-500 font-medium">No branches found.</p>
-                            {canCreateUpdate && (
+                            {canCreateBranch && (
                                 <button
                                     onClick={() => {
                                         setSelectedBranch(undefined);

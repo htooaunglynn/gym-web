@@ -14,8 +14,14 @@ import {
     PaginationResponse,
     PaginationMeta,
 } from "@/lib/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { usePermission } from "@/hooks/usePermission";
+import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
+import {
+    ALL_BRANCHES_READONLY_MESSAGE,
+    isAllBranchesScope,
+} from "@/lib/branchScope";
 import { X } from "lucide-react";
 
 interface Trainer {
@@ -26,9 +32,11 @@ interface Trainer {
 }
 
 export default function MembersPage() {
+    const { user, activeBranchId } = useAuth();
     const { showToast } = useToast();
     const canCreateUpdate = usePermission("MEMBERS", "CREATE_UPDATE");
     const canDelete = usePermission("MEMBERS", "DELETE");
+    const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const [members, setMembers] = useState<Member[]>([]);
     const [meta, setMeta] = useState<PaginationMeta>({
@@ -233,17 +241,24 @@ export default function MembersPage() {
                         action="CREATE_UPDATE"
                         fallback={null}
                     >
-                        <button
-                            onClick={() => {
-                                setSelectedMember(undefined);
-                                setIsModalOpen(true);
-                            }}
-                            className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
-                        >
-                            + Add Member
-                        </button>
+                        {!isAllBranchesMode ? (
+                            <button
+                                onClick={() => {
+                                    setSelectedMember(undefined);
+                                    setIsModalOpen(true);
+                                }}
+                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
+                            >
+                                + Add Member
+                            </button>
+                        ) : null}
                     </PermissionGuard>
                 </div>
+
+                <BranchScopeNotice
+                    isVisible={isAllBranchesMode}
+                    message={ALL_BRANCHES_READONLY_MESSAGE}
+                />
 
                 <DataTable
                     columns={columns}
@@ -253,7 +268,7 @@ export default function MembersPage() {
                     activeTab={activeTab}
                     onTabChange={setActiveTab}
                     actions={[
-                        ...(canCreateUpdate
+                        ...(canCreateUpdate && !isAllBranchesMode
                             ? [
                                 {
                                     label: "Edit Details",
@@ -265,7 +280,7 @@ export default function MembersPage() {
                                 },
                             ]
                             : []),
-                        ...(canDelete
+                        ...(canDelete && !isAllBranchesMode
                             ? [
                                 {
                                     label: "Remove",

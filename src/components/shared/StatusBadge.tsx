@@ -9,7 +9,7 @@ type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
 type EquipmentCondition = "NEW" | "GOOD" | "FAIR" | "POOR";
 
 export interface StatusBadgeProps {
-  status: SubscriptionStatus | PaymentStatus | EquipmentCondition;
+  status: SubscriptionStatus | PaymentStatus | EquipmentCondition | null | undefined;
   variant?: "subscription" | "payment" | "equipment";
 }
 
@@ -101,7 +101,8 @@ function isEquipmentCondition(s: string): s is EquipmentCondition {
 
 // ─── Human-readable labels ────────────────────────────────────────────────────
 
-function getLabel(status: string): string {
+function getLabel(status: string | null | undefined): string {
+  if (!status) return "Unknown";
   // Convert SCREAMING_SNAKE_CASE to Title Case
   return status
     .split("_")
@@ -119,8 +120,9 @@ function getLabel(status: string): string {
  * styles as required by Requirement 8.2.
  */
 export function StatusBadge({ status, variant }: StatusBadgeProps) {
-  const tailwindClasses = getTailwindClasses(status, variant);
-  const inlineStyle = getInlineStyle(status, variant);
+  const safeStatus = status ?? "";
+  const tailwindClasses = safeStatus ? getTailwindClasses(safeStatus, variant) : "bg-gray-100 text-gray-500";
+  const inlineStyle = safeStatus ? getInlineStyle(safeStatus, variant) : undefined;
 
   const baseClasses =
     "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap";

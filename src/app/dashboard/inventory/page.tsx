@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { AddInventoryModal } from "@/components/crud/AddInventoryModal";
+import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
 import {
     apiClient,
     normalizeListResponse,
@@ -10,6 +11,11 @@ import {
 } from "@/lib/apiClient";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+    ALL_BRANCHES_READONLY_MESSAGE,
+    isAllBranchesScope,
+} from "@/lib/branchScope";
 
 interface InventoryMovement {
     id: string;
@@ -23,7 +29,9 @@ interface InventoryMovement {
 }
 
 export default function InventoryPage() {
+    const { user, activeBranchId } = useAuth();
     const tabs = ["All Actions", "Incoming", "Outgoing", "Adjustment"] as const;
+    const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const [movements, setMovements] = useState<InventoryMovement[]>([]);
     const [meta, setMeta] = useState({
@@ -159,14 +167,21 @@ export default function InventoryPage() {
                         action="CREATE_UPDATE"
                         fallback={null}
                     >
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
-                        >
-                            Add Movement
-                        </button>
+                        {!isAllBranchesMode ? (
+                            <button
+                                onClick={() => setIsModalOpen(true)}
+                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
+                            >
+                                Add Movement
+                            </button>
+                        ) : null}
                     </PermissionGuard>
                 </div>
+
+                <BranchScopeNotice
+                    isVisible={isAllBranchesMode}
+                    message={ALL_BRANCHES_READONLY_MESSAGE}
+                />
 
                 <DataTable
                     columns={columns}
@@ -178,12 +193,7 @@ export default function InventoryPage() {
                         setActiveTab(tab as (typeof tabs)[number]);
                         setPage(1);
                     }}
-                    actions={[
-                        {
-                            label: "View Details",
-                            onClick: (row) => console.log("Edit", row.id),
-                        },
-                    ]}
+                    actions={[]}
                 />
 
                 <PaginationControls

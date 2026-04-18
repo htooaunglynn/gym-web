@@ -5,6 +5,7 @@ import type {
     PermissionFeature,
     PermissionAction,
 } from "@/contexts/AuthContext";
+import { hasAuthority } from "@/lib/authorization";
 
 /**
  * Returns true if the current user has the given feature + action permission.
@@ -14,9 +15,7 @@ export function usePermission(
     feature: PermissionFeature,
     action: PermissionAction,
 ): boolean {
-    const { permissions } = useAuth();
+    const { user, permissions } = useAuth();
 
-    return permissions.some(
-        (p) => p.feature === feature && p.actions.includes(action),
-    );
+    return hasAuthority(user, permissions, feature, action);
 }

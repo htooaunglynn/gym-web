@@ -8,8 +8,14 @@ import {
 } from "@/lib/apiClient";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { SaleModal } from "@/components/dashboard/SaleModal";
+import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+    ALL_BRANCHES_READONLY_MESSAGE,
+    isAllBranchesScope,
+} from "@/lib/branchScope";
 import { Plus, ShoppingBag, User, Calendar } from "lucide-react";
 
 interface SaleItem {
@@ -34,6 +40,7 @@ interface Sale {
 }
 
 export default function SalesPage() {
+    const { user, activeBranchId } = useAuth();
     const [sales, setSales] = useState<Sale[]>([]);
     const [meta, setMeta] = useState({
         totalItems: 0,
@@ -45,6 +52,7 @@ export default function SalesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedSale, setSelectedSale] = useState<Sale | undefined>(undefined);
+    const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const fetchSales = async (currentPage = page) => {
         setIsLoading(true);
@@ -156,32 +164,31 @@ export default function SalesPage() {
                         action="CREATE_UPDATE"
                         fallback={null}
                     >
-                        <button
-                            onClick={() => {
-                                setSelectedSale(undefined);
-                                setIsModalOpen(true);
-                            }}
-                            className="bg-[#FF5C39] hover:bg-[#e64a2e] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-[#FF5C39]/20 transition-all flex items-center gap-2"
-                        >
-                            <Plus className="w-5 h-5" />
-                            New Sale
-                        </button>
+                        {!isAllBranchesMode ? (
+                            <button
+                                onClick={() => {
+                                    setSelectedSale(undefined);
+                                    setIsModalOpen(true);
+                                }}
+                                className="bg-[#FF5C39] hover:bg-[#e64a2e] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-[#FF5C39]/20 transition-all flex items-center gap-2"
+                            >
+                                <Plus className="w-5 h-5" />
+                                New Sale
+                            </button>
+                        ) : null}
                     </PermissionGuard>
                 </div>
+
+                <BranchScopeNotice
+                    isVisible={isAllBranchesMode}
+                    message={ALL_BRANCHES_READONLY_MESSAGE}
+                />
 
                 <DataTable
                     columns={columns}
                     data={sales}
                     isLoading={isLoading}
-                    actions={[
-                        {
-                            label: "View Details",
-                            onClick: (row) => {
-                                setSelectedSale(row);
-                                setIsModalOpen(true);
-                            },
-                        },
-                    ]}
+                    actions={[]}
                 />
 
                 <PaginationControls

@@ -78,6 +78,22 @@ describe("apiClient – Bearer token attachment", () => {
       "application/json",
     );
   });
+
+  it("attaches x-branch-id when an active branch is stored", async () => {
+    localStorage.setItem("activeBranchId", "branch-123");
+
+    const { apiClient } = await import("./apiClient");
+    await apiClient("/test");
+
+    expect(capturedRequests[0].headers.get("x-branch-id")).toBe("branch-123");
+  });
+
+  it("omits x-branch-id when all branches mode is active", async () => {
+    const { apiClient } = await import("./apiClient");
+    await apiClient("/test");
+
+    expect(capturedRequests[0].headers.get("x-branch-id")).toBeNull();
+  });
 });
 
 describe("apiClient – query params", () => {

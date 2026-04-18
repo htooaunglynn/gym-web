@@ -10,6 +10,8 @@ import React, {
 } from "react";
 import { ApiClientError, apiClient } from "@/lib/apiClient";
 
+const ACTIVE_BRANCH_STORAGE_KEY = "activeBranchId";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type GlobalRole = "ADMIN" | "BRANCH_ADMIN" | "STAFF" | "HR" | "MANAGER";
@@ -49,15 +51,19 @@ interface CurrentUserPermissionMatrix {
 export interface AuthUser {
     sub: string;
     email: string;
+    role: GlobalRole | null;
     globalRole: GlobalRole;
     branchId: string | null;
+    isAdmin: boolean;
 }
 
 interface JwtPayload {
     sub: string;
     email: string;
+    role?: GlobalRole;
     globalRole: GlobalRole;
     branchId: string | null;
+    isAdmin?: boolean;
     iat: number;
     exp: number;
 }
@@ -65,7 +71,7 @@ interface JwtPayload {
 export interface AuthContextValue {
     user: AuthUser | null;
     activeBranchId: string | null;
-    setActiveBranchId: (id: string) => void;
+    setActiveBranchId: (id: string | null) => void;
     login: (token: string) => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
@@ -109,9 +115,22 @@ function payloadToUser(payload: JwtPayload): AuthUser {
     return {
         sub: payload.sub,
         email: payload.email,
+        role: payload.role ?? null,
         globalRole: payload.globalRole,
         branchId: payload.branchId,
+        isAdmin: payload.isAdmin === true || payload.globalRole === "ADMIN",
     };
+}
+
+function getStoredActiveBranchId(user: AuthUser | null): string | null {
+    if (typeof window === "undefined") return user?.branchId ?? null;
+
+    const storedBranchId = localStorage.getItem(ACTIVE_BRANCH_STORAGE_KEY);
+    if (user?.isAdmin) {
+        return storedBranchId ?? null;
+    }
+
+    return user?.branchId ?? null;
 }
 
 function getStoredAuthUser(): AuthUser | null {
@@ -134,11 +153,13 @@ function getStoredAuthUser(): AuthUser | null {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<AuthUser | null>(() => getStoredAuthUser());
-    const [activeBranchId, setActiveBranchIdState] = useState<string | null>(
-        () => getStoredAuthUser()?.branchId ?? null,
-    );
+    // Start with null/empty so the SSR-rendered HTML matches the initial client
+    // render (both see an unauthenticated state). A useEffect below rehydrates
+    // the persisted auth state from localStorage on the client only.
+    const [user, setUser] = useState<AuthUser | null>(null);
+    const [activeBranchId, setActiveBranchIdState] = useState<string | null>(null);
     const [permissions, setPermissions] = useState<RolePermission[]>([]);
+    const [hydrated, setHydrated] = useState(false);
 
     const refreshPermissions = useCallback(async (branchId?: string | null) => {
         try {
@@ -164,22 +185,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
-    // On mount, restore permissions for authenticated staff/admin accounts.
+    // On mount (client only): restore auth state from localStorage so it
+    // matches what was persisted in the previous session.
     useEffect(() => {
+        const restoredUser = getStoredAuthUser();
+        const restoredBranchId = getStoredActiveBranchId(restoredUser);
+        setUser(restoredUser);
+        setActiveBranchIdState(restoredBranchId);
+        setHydrated(true);
+    }, []);
+
+    // Once hydrated, fetch the permission matrix for the authenticated user.
+    useEffect(() => {
+        if (!hydrated) return;
         const token = localStorage.getItem("accessToken");
         if (!token) return;
 
-        void Promise.resolve().then(() => refreshPermissions(activeBranchId));
-    }, [activeBranchId, refreshPermissions]);
+        void refreshPermissions(activeBranchId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hydrated, refreshPermissions]);
 
     const login = useCallback(async (token: string) => {
         localStorage.setItem("accessToken", token);
         const payload = decodeJwt(token);
         if (payload) {
             const authUser = payloadToUser(payload);
+            const nextBranchId = authUser.isAdmin
+                ? getStoredActiveBranchId(authUser)
+                : authUser.branchId;
             setUser(authUser);
-            setActiveBranchIdState(authUser.branchId);
-            await refreshPermissions(authUser.branchId);
+            setActiveBranchIdState(nextBranchId);
+
+            if (nextBranchId) {
+                localStorage.setItem(ACTIVE_BRANCH_STORAGE_KEY, nextBranchId);
+            } else {
+                localStorage.removeItem(ACTIVE_BRANCH_STORAGE_KEY);
+            }
+
+            await refreshPermissions(nextBranchId);
             return;
         }
 
@@ -188,6 +231,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = useCallback(() => {
         localStorage.removeItem("accessToken");
+        localStorage.removeItem(ACTIVE_BRANCH_STORAGE_KEY);
         setUser(null);
         setActiveBranchIdState(null);
         setPermissions([]);
@@ -195,9 +239,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const setActiveBranchId = useCallback(
-        (id: string) => {
+        (id: string | null) => {
             // Only ADMIN users can switch branches
-            if (user?.globalRole === "ADMIN") {
+            if (user?.isAdmin) {
+                if (id) {
+                    localStorage.setItem(ACTIVE_BRANCH_STORAGE_KEY, id);
+                } else {
+                    localStorage.removeItem(ACTIVE_BRANCH_STORAGE_KEY);
+                }
                 setActiveBranchIdState(id);
             }
         },

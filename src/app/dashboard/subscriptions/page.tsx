@@ -7,16 +7,22 @@ import {
     SubscriptionModal,
     MemberSubscription,
 } from "@/components/crud/SubscriptionModal";
+import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { useAuth } from "@/contexts/AuthContext";
 import {
     apiClient,
     normalizeListResponse,
     PaginationResponse,
 } from "@/lib/apiClient";
 import { usePermission } from "@/hooks/usePermission";
+import {
+    ALL_BRANCHES_READONLY_MESSAGE,
+    isAllBranchesScope,
+} from "@/lib/branchScope";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -25,6 +31,7 @@ const TABS = ["All", "Active", "Paused", "Cancelled", "Expired"] as const;
 // ─── Page Component ───────────────────────────────────────────────────────────
 
 export default function SubscriptionsPage() {
+    const { user, activeBranchId } = useAuth();
     // ── State ──────────────────────────────────────────────────────────────────
     const [rows, setRows] = useState<MemberSubscription[]>([]);
     const [meta, setMeta] = useState({
@@ -53,6 +60,7 @@ export default function SubscriptionsPage() {
     );
     const canDelete = usePermission("MEMBER_SUBSCRIPTIONS", "DELETE");
     const canApprove = usePermission("SUBSCRIPTION_APPROVALS", "APPROVE");
+    const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     // ── Data Fetch ─────────────────────────────────────────────────────────────
     const fetchData = useCallback(async () => {
@@ -167,14 +175,18 @@ export default function SubscriptionsPage() {
 
     // ── Actions ────────────────────────────────────────────────────────────────
     const actions = [
-        {
-            label: "Edit",
-            onClick: (row: MemberSubscription) => {
-                setSelectedRow(row);
-                setIsModalOpen(true);
-            },
-        },
-        ...(canDelete
+        ...(canCreateUpdate && !isAllBranchesMode
+            ? [
+                {
+                    label: "Edit",
+                    onClick: (row: MemberSubscription) => {
+                        setSelectedRow(row);
+                        setIsModalOpen(true);
+                    },
+                },
+            ]
+            : []),
+        ...(canDelete && !isAllBranchesMode
             ? [
                 {
                     label: "Delete",
@@ -183,7 +195,7 @@ export default function SubscriptionsPage() {
                 },
             ]
             : []),
-        ...(canApprove
+        ...(canApprove && !isAllBranchesMode
             ? [
                 {
                     label: "Approve",
@@ -214,7 +226,7 @@ export default function SubscriptionsPage() {
                     </div>
 
                     {/* Add Subscription — guarded by CREATE_UPDATE */}
-                    {canCreateUpdate && (
+                    {canCreateUpdate && !isAllBranchesMode && (
                         <button
                             onClick={() => {
                                 setSelectedRow(undefined);
@@ -227,6 +239,11 @@ export default function SubscriptionsPage() {
                         </button>
                     )}
                 </div>
+
+                <BranchScopeNotice
+                    isVisible={isAllBranchesMode}
+                    message={ALL_BRANCHES_READONLY_MESSAGE}
+                />
 
                 {/* Tabs */}
                 <div className="flex items-center gap-2 mb-6 flex-wrap">

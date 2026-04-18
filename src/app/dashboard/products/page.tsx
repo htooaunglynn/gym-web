@@ -8,10 +8,16 @@ import {
 } from "@/lib/apiClient";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { ProductModal } from "@/components/dashboard/ProductModal";
+import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
+import { useAuth } from "@/contexts/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
+import {
+    ALL_BRANCHES_READONLY_MESSAGE,
+    isAllBranchesScope,
+} from "@/lib/branchScope";
 import { Plus, Package, AlertCircle } from "lucide-react";
 
 interface Product {
@@ -26,8 +32,10 @@ interface Product {
 }
 
 export default function ProductsPage() {
+    const { user, activeBranchId } = useAuth();
     const canEdit = usePermission("PRODUCTS", "CREATE_UPDATE");
     const canDelete = usePermission("PRODUCTS", "DELETE");
+    const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const [products, setProducts] = useState<Product[]>([]);
     const [meta, setMeta] = useState({
@@ -168,25 +176,32 @@ export default function ProductsPage() {
                         action="CREATE_UPDATE"
                         fallback={null}
                     >
-                        <button
-                            onClick={() => {
-                                setSelectedProduct(undefined);
-                                setIsModalOpen(true);
-                            }}
-                            className="bg-gray-900 hover:bg-black text-white px-6 py-3 rounded-2xl font-bold shadow-lg transition-all flex items-center gap-2"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Add Product
-                        </button>
+                        {!isAllBranchesMode ? (
+                            <button
+                                onClick={() => {
+                                    setSelectedProduct(undefined);
+                                    setIsModalOpen(true);
+                                }}
+                                className="bg-gray-900 hover:bg-black text-white px-6 py-3 rounded-2xl font-bold shadow-lg transition-all flex items-center gap-2"
+                            >
+                                <Plus className="w-5 h-5" />
+                                Add Product
+                            </button>
+                        ) : null}
                     </PermissionGuard>
                 </div>
+
+                <BranchScopeNotice
+                    isVisible={isAllBranchesMode}
+                    message={ALL_BRANCHES_READONLY_MESSAGE}
+                />
 
                 <DataTable
                     columns={columns}
                     data={products}
                     isLoading={isLoading}
                     actions={[
-                        ...(canEdit
+                        ...(canEdit && !isAllBranchesMode
                             ? [
                                 {
                                     label: "Edit Product",
@@ -197,7 +212,7 @@ export default function ProductsPage() {
                                 },
                             ]
                             : []),
-                        ...(canDelete
+                        ...(canDelete && !isAllBranchesMode
                             ? [
                                 {
                                     label: "Delete",

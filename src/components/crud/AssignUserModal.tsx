@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Search, Check } from "lucide-react";
-import { apiClient, PaginationResponse } from "@/lib/apiClient";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiClient, normalizeListResponse } from "@/lib/apiClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,15 @@ interface User {
 }
 
 type BranchRole = "ADMIN" | "BRANCH_ADMIN" | "STAFF" | "HR" | "MANAGER";
+
+const BRANCH_ADMIN_ROLE_OPTIONS: BranchRole[] = ["STAFF", "HR", "MANAGER"];
+const SUPER_ADMIN_ROLE_OPTIONS: BranchRole[] = [
+  "ADMIN",
+  "BRANCH_ADMIN",
+  "STAFF",
+  "HR",
+  "MANAGER",
+];
 
 export interface AssignUserModalProps {
   isOpen: boolean;
@@ -31,6 +41,7 @@ export function AssignUserModal({
   onSuccess,
   branchId,
 }: AssignUserModalProps) {
+  const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +54,10 @@ export function AssignUserModal({
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const roleOptions =
+    user?.globalRole === "ADMIN"
+      ? SUPER_ADMIN_ROLE_OPTIONS
+      : BRANCH_ADMIN_ROLE_OPTIONS;
 
   // Fetch users when modal opens
   useEffect(() => {
@@ -54,12 +69,11 @@ export function AssignUserModal({
       setIsDropdownOpen(false);
 
       setIsFetchingUsers(true);
-      apiClient<PaginationResponse<User>>("/users", {
-        params: { page: 1, limit: 50, includeDeleted: false },
-      })
+      apiClient<User[] | { data: User[] }>(`/branches/${branchId}/assignable-users`)
         .then((res) => {
-          setUsers(res.data);
-          setFilteredUsers(res.data);
+          const nextUsers = normalizeListResponse(res).data;
+          setUsers(nextUsers);
+          setFilteredUsers(nextUsers);
         })
         .catch(() => {
           // apiClient handles toast
@@ -67,6 +81,12 @@ export function AssignUserModal({
         .finally(() => setIsFetchingUsers(false));
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!roleOptions.includes(role)) {
+      setRole(roleOptions[0] ?? "STAFF");
+    }
+  }, [role, roleOptions]);
 
   // Filter users client-side as the search query changes
   useEffect(() => {
@@ -318,11 +338,11 @@ export function AssignUserModal({
               onChange={(e) => setRole(e.target.value as BranchRole)}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-[#435ee5]/20 transition-colors text-sm bg-white"
             >
-              <option value="ADMIN">ADMIN</option>
-              <option value="BRANCH_ADMIN">BRANCH_ADMIN</option>
-              <option value="STAFF">STAFF</option>
-              <option value="HR">HR</option>
-              <option value="MANAGER">MANAGER</option>
+              {roleOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
           </div>
 

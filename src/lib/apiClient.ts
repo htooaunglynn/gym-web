@@ -127,6 +127,14 @@ export async function apiClient<T>(
         headers["Authorization"] = `Bearer ${token}`;
     }
 
+    const activeBranchId =
+        typeof window !== "undefined"
+            ? localStorage.getItem("activeBranchId")
+            : null;
+    if (activeBranchId) {
+        headers["x-branch-id"] = activeBranchId;
+    }
+
     try {
         const response = await fetch(url, {
             ...fetchOptions,
