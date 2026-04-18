@@ -1,4 +1,4 @@
-import { LoginForm } from "@/components/auth/LoginForm";
+import { LoginFormClient } from "@/components/auth/LoginFormClient";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -14,9 +14,9 @@ export default function LoginPage() {
         <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full border-[1px] border-[#c0ddd4]/50 dark:border-gray-800" />
         <div className="absolute top-[20%] right-[5%] w-[30%] h-[30%] rounded-full border-[1px] border-[#c0ddd4]/50 dark:border-gray-800" />
       </div>
-      
+
       <div className="relative z-10 w-full flex justify-center">
-        <LoginForm />
+        <LoginFormClient />
       </div>
     </div>
   );
