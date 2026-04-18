@@ -1,16 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import type { BillingCycle, MembershipPlan } from "@/types/membership-plan";
 
-interface MembershipPlan {
-    id: string;
-    name: string;
-    description: string;
-    amount: number;
-    billingCycle: string;
-    isActive: boolean;
+const EMPTY_FEATURE = "";
+
+function sanitizeFeatures(features: string[]) {
+    return [...new Set(features.map((feature) => feature.trim()).filter(Boolean))];
 }
 
 interface PlanModalProps {
@@ -30,9 +28,10 @@ export function PlanModal({
         name: "",
         description: "",
         amount: "",
-        billingCycle: "MONTHLY",
+        billingCycle: "MONTHLY" as BillingCycle,
         isActive: true,
     });
+    const [features, setFeatures] = useState<string[]>([EMPTY_FEATURE]);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -46,6 +45,7 @@ export function PlanModal({
                 billingCycle: plan.billingCycle || "MONTHLY",
                 isActive: plan.isActive !== undefined ? plan.isActive : true,
             });
+            setFeatures(plan.features.length > 0 ? plan.features : [EMPTY_FEATURE]);
         } else {
             setFormData({
                 name: "",
@@ -54,6 +54,7 @@ export function PlanModal({
                 billingCycle: "MONTHLY",
                 isActive: true,
             });
+            setFeatures([EMPTY_FEATURE]);
         }
     }, [plan, isOpen]);
 
@@ -84,6 +85,13 @@ export function PlanModal({
             return;
         }
 
+        const sanitizedFeatures = sanitizeFeatures(features);
+        if (sanitizedFeatures.length === 0) {
+            setError("Please add at least one feature.");
+            setLoading(false);
+            return;
+        }
+
         try {
             const method = plan ? "PATCH" : "POST";
             const path = plan ? `/membership-plans/${plan.id}` : "/membership-plans";
@@ -93,6 +101,7 @@ export function PlanModal({
                 body: JSON.stringify({
                     ...formData,
                     amount: parsedAmount.toString(),
+                    features: sanitizedFeatures,
                 }),
             });
 
@@ -103,6 +112,28 @@ export function PlanModal({
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleFeatureChange = (index: number, value: string) => {
+        setFeatures((currentFeatures) =>
+            currentFeatures.map((feature, currentIndex) =>
+                currentIndex === index ? value : feature,
+            ),
+        );
+    };
+
+    const handleAddFeature = () => {
+        setFeatures((currentFeatures) => [...currentFeatures, EMPTY_FEATURE]);
+    };
+
+    const handleRemoveFeature = (index: number) => {
+        setFeatures((currentFeatures) => {
+            const nextFeatures = currentFeatures.filter(
+                (_, currentIndex) => currentIndex !== index,
+            );
+
+            return nextFeatures.length > 0 ? nextFeatures : [EMPTY_FEATURE];
+        });
     };
 
     return (
@@ -154,6 +185,49 @@ export function PlanModal({
                             rows={3}
                             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm"
                         />
+                    </div>
+
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                Features
+                            </label>
+                            <button
+                                type="button"
+                                onClick={handleAddFeature}
+                                className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-600 transition-colors hover:border-gray-900 hover:text-gray-900"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                Add Feature
+                            </button>
+                        </div>
+
+                        <div className="space-y-2.5 rounded-2xl border border-gray-100 bg-gray-50/70 p-3">
+                            {features.map((feature, index) => (
+                                <div key={`${index}-${feature}`} className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. 24/7 gym access"
+                                        value={feature}
+                                        onChange={(e) =>
+                                            handleFeatureChange(index, e.target.value)
+                                        }
+                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 transition-colors focus:border-gray-900 focus:outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveFeature(index)}
+                                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-transparent text-gray-400 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-500"
+                                        aria-label={`Remove feature ${index + 1}`}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-2 text-xs font-medium text-gray-400">
+                            Add, edit, or remove the benefits included in this membership plan.
+                        </p>
                     </div>
 
                     <div className="flex gap-4 mb-6">

@@ -14,16 +14,7 @@ import {
     normalizeListResponse,
     PaginationResponse,
 } from "@/lib/apiClient";
-
-interface MembershipPlan {
-    id: string;
-    name: string;
-    description: string;
-    amount: number;
-    billingCycle: string;
-    isActive: boolean;
-    createdAt: string;
-}
+import type { MembershipPlan } from "@/types/membership-plan";
 
 export default function PlansPage() {
     const [plans, setPlans] = useState<MembershipPlan[]>([]);
@@ -120,6 +111,33 @@ export default function PlansPage() {
                     {row.billingCycle}
                 </span>
             ),
+        },
+        {
+            header: "Features",
+            className: "min-w-[260px]",
+            accessor: (row) => {
+                const visibleFeatures = row.features.slice(0, 2);
+                const remainingCount = row.features.length - visibleFeatures.length;
+
+                return (
+                    <div className="flex flex-wrap gap-1.5 py-1">
+                        {visibleFeatures.map((feature) => (
+                            <span
+                                key={feature}
+                                className="rounded-full bg-[#fff1f1] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#c13b3b]"
+                                title={feature}
+                            >
+                                {feature}
+                            </span>
+                        ))}
+                        {remainingCount > 0 && (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                                +{remainingCount} more
+                            </span>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             header: "Status",

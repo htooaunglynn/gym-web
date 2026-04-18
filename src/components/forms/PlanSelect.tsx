@@ -7,15 +7,7 @@ import {
     normalizeListResponse,
     PaginationResponse,
 } from "@/lib/apiClient";
-
-interface MembershipPlan {
-    id: string;
-    name: string;
-    description?: string;
-    amount: number;
-    billingCycle: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
-    isActive: boolean;
-}
+import type { MembershipPlan } from "@/types/membership-plan";
 
 export interface PlanSelectProps {
     onSelect: (plan: MembershipPlan | null) => void;
@@ -168,14 +160,14 @@ export function PlanSelect({
                                 setIsOpen(false);
                             }}
                             className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${selectedPlanId === plan.id
-                                    ? "bg-gray-900 text-white"
-                                    : "hover:bg-gray-50 text-gray-700"
+                                ? "bg-gray-900 text-white"
+                                : "hover:bg-gray-50 text-gray-700"
                                 }`}
                         >
                             <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${selectedPlanId === plan.id
-                                        ? "bg-white/20"
-                                        : "bg-gray-100 text-gray-500"
+                                    ? "bg-white/20"
+                                    : "bg-gray-100 text-gray-500"
                                     }`}
                             >
                                 <CreditCard className="w-4 h-4" />
@@ -184,8 +176,8 @@ export function PlanSelect({
                                 <span className="text-sm font-bold truncate">{plan.name}</span>
                                 <span
                                     className={`text-[10px] truncate ${selectedPlanId === plan.id
-                                            ? "text-white/60"
-                                            : "text-gray-400"
+                                        ? "text-white/60"
+                                        : "text-gray-400"
                                         }`}
                                 >
                                     ${Number(plan.amount).toFixed(2)} /{" "}
