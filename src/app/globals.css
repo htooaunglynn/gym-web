@@ -4,6 +4,10 @@
     --background: #ffffff;
     --foreground: #111111;
     --brand-primary: #E62A29;
+    --brand-accent: #e60023;
+    --surface-warm: #fbfaf8;
+    --surface-soft: #f3f2ee;
+    --border-soft: #eceae3;
     --font-sans-stack: "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
     --font-heading-stack: "Arial Black", "Franklin Gothic Heavy", "Impact", "Avenir Next Condensed", sans-serif;
 }
@@ -29,6 +33,20 @@ body {
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans), sans-serif;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.dashboard-focus {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-accent) 22%, transparent);
 }
 
 h1,

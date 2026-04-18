@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "e7ef7ac5-00c6-4baa-90f7-cfe1f3d6328f",
         "name": "Gym API",
-        "description": "Postman collection for gym-api (NestJS). Includes auth, branches, permissions, CRUD modules, attendance, inventory movements, membership plans, member subscriptions, products, product sales, reports, and selected negative tests.\n\nPlatform mapping:\n- Web: Users\n- Mobile: Trainers, Members\n\nRecommended run order:\n1) Authentication -> POST /auth/login (USER)\n2) Users (Web) -> create (captures userId)\n3) Trainers (Mobile) -> create (captures trainerId)\n4) Members (Mobile) -> create (captures memberId)\n5) Equipment / Attendance / Inventory Movements\n6) Membership Plans -> create (captures membershipPlanId)\n7) Member Subscriptions -> create (captures memberSubscriptionId), lifecycle, reports\n8) Products -> create (captures productId)\n9) Product Sales -> create (captures productSaleId), reports\n10) Branches -> create (captures branchId), assignment and lifecycle\n11) Permissions -> me, roles, role details, upsert permissions",
+        "description": "Postman collection for gym-api (NestJS). Includes auth, branches, permissions, CRUD modules, attendance, inventory movements, membership plans, member subscriptions, products, product sales, reports, and selected negative tests.\n\nPlatform mapping:\n- Web: Users\n- Mobile: Trainers, Members\n\nRecommended run order:\n1) Authentication -> POST /auth/login (USER)\n2) Users (Web) -> create (captures userId)\n3) Trainers (Mobile) -> create (captures trainerId)\n4) Members (Mobile) -> create (captures memberId)\n5) Equipment / Attendance / Inventory Movements\n6) Membership Plans -> create (captures membershipPlanId)\n7) Member Subscriptions -> create (captures memberSubscriptionId), lifecycle, reports\n8) Products -> create (captures productId)\n9) Product Sales -> create (captures productSaleId), reports\n10) Branches -> create/setup branch-admin context (captures branchId, secondBranchId, branchAdminUserId, branchAdminAccessToken)\n11) Permissions -> me, roles, role details, upsert permissions (includes branch-admin branch-scoped checks)",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "event": [
@@ -78,6 +78,30 @@
         },
         {
             "key": "memberAccessToken",
+            "value": ""
+        },
+        {
+            "key": "branchAdminUserId",
+            "value": ""
+        },
+        {
+            "key": "branchAdminAccessToken",
+            "value": ""
+        },
+        {
+            "key": "secondBranchId",
+            "value": ""
+        },
+        {
+            "key": "branchAdminSeedEmail",
+            "value": ""
+        },
+        {
+            "key": "branchAdminSeedPassword",
+            "value": ""
+        },
+        {
+            "key": "branchAdminTargetUserId",
             "value": ""
         }
     ],
@@ -487,7 +511,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"email\": \"user.admin+{{runSuffix}}@example.com\",\n  \"phone\": \"+1 (555) 100-{{runSuffix}}\",\n  \"firstName\": \"Dup\",\n  \"lastName\": \"User\",\n  \"role\": \"HR\"\n}"
+                            "raw": "{\n  \"email\": \"user.admin+{{runSuffix}}@example.com\",\n  \"phone\": \"+1 (555) 100-{{runSuffix}}\",\n  \"firstName\": \"Dup\",\n  \"lastName\": \"User\",\n  \"role\": \"HR\",\n  \"password\": \"AdminPass123!\"\n}"
                         },
                         "url": {
                             "raw": "{{baseUrl}}/users",
@@ -584,7 +608,7 @@
         },
         {
             "name": "Branches",
-            "description": "Branch management and user assignment flow. Requires {{userId}} from Users create and captures {{branchId}}.",
+            "description": "Branch management and user assignment flow. Requires {{userId}} from Users create and captures {{branchId}} plus branch-admin setup variables.",
             "auth": {
                 "type": "bearer",
                 "bearer": [
@@ -635,6 +659,747 @@
                             }
                         }
                     ]
+                },
+                {
+                    "name": "POST /branches - create second branch (setup)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Uptown {{runSuffix}}\",\n  \"description\": \"Secondary branch {{runSuffix}}\"\n}"
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
+                                    "if (json && json.id) { pm.collectionVariables.set('secondBranchId', json.id); }"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "POST /users - create branch admin (setup)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"branch.admin+{{runSuffix}}@example.com\",\n  \"phone\": \"+1 (555) 102-{{runSuffix}}\",\n  \"firstName\": \"Branch\",\n  \"lastName\": \"Admin\",\n  \"role\": \"BRANCH_ADMIN\",\n  \"password\": \"AdminPass123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users"
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
+                                    "if (json && json.id) { pm.collectionVariables.set('branchAdminUserId', json.id); }"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "POST /users - create branch assignment target (setup)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"branch.staff+{{runSuffix}}@example.com\",\n  \"phone\": \"+1 (555) 103-{{runSuffix}}\",\n  \"firstName\": \"Branch\",\n  \"lastName\": \"Staff\",\n  \"role\": \"STAFF\",\n  \"password\": \"StaffPass123!\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "users"
+                            ]
+                        }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });",
+                                    "if (json && json.id) { pm.collectionVariables.set('branchAdminTargetUserId', json.id); }"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "POST /branches/:id/users - assign branch admin (setup)",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required before assigning branch admin'); }",
+                                    "if (!pm.collectionVariables.get('branchAdminUserId')) { throw new Error('branchAdminUserId is required before assigning branch admin'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{secondBranchId}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{secondBranchId}}",
+                                "users"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userId\": \"{{branchAdminUserId}}\",\n  \"role\": \"BRANCH_ADMIN\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "POST /auth/login (BRANCH ADMIN - Web)",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "var runSuffix = pm.collectionVariables.get('runSuffix') || '';",
+                                    "var seededEmail = pm.collectionVariables.get('branchAdminSeedEmail');",
+                                    "var seededPassword = pm.collectionVariables.get('branchAdminSeedPassword');",
+                                    "var loginEmail = seededEmail || ('branch.admin+' + runSuffix + '@example.com');",
+                                    "var loginPassword = seededPassword || 'AdminPass123!';",
+                                    "pm.collectionVariables.set('branchAdminLoginEmail', loginEmail);",
+                                    "pm.collectionVariables.set('branchAdminLoginPassword', loginPassword);"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has accessToken', function () { pm.expect(json).to.have.property('accessToken'); });",
+                                    "if (json && json.accessToken) { pm.collectionVariables.set('branchAdminAccessToken', json.accessToken); }"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"{{branchAdminLoginEmail}}\",\n  \"password\": \"{{branchAdminLoginPassword}}\",\n  \"accountType\": \"USER\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/login",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "login"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /branches/:id - own branch as branch admin",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response has id', function () { pm.expect(json).to.have.property('id'); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{secondBranchId}}?includeDeleted=false",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{secondBranchId}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH /branches/:id - own branch as branch admin",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{secondBranchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{secondBranchId}}"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"description\": \"Branch admin updated description {{runSuffix}}\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /branches - forbidden for branch admin",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Forbidden Branch Admin {{runSuffix}}\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE GET /branches - forbidden for branch admin",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches?page=1&limit=10&includeDeleted=false&includeUsers=true",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                },
+                                {
+                                    "key": "includeDeleted",
+                                    "value": "false"
+                                },
+                                {
+                                    "key": "includeUsers",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE DELETE /branches/:id - forbidden for branch admin",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('branchId')) { throw new Error('branchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}"
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST /branches/:id/users - assign staff by branch admin",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }",
+                                    "if (!pm.collectionVariables.get('branchAdminTargetUserId')) { throw new Error('branchAdminTargetUserId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 201', function () { pm.response.to.have.status(201); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{secondBranchId}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{secondBranchId}}",
+                                "users"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userId\": \"{{branchAdminTargetUserId}}\",\n  \"role\": \"STAFF\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /branches/:id/users - branch admin cannot assign ADMIN",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }",
+                                    "if (!pm.collectionVariables.get('branchAdminTargetUserId')) { throw new Error('branchAdminTargetUserId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{secondBranchId}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{secondBranchId}}",
+                                "users"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userId\": \"{{branchAdminTargetUserId}}\",\n  \"role\": \"ADMIN\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /branches/:id/users - branch admin cannot assign BRANCH_ADMIN",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }",
+                                    "if (!pm.collectionVariables.get('branchAdminTargetUserId')) { throw new Error('branchAdminTargetUserId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{secondBranchId}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{secondBranchId}}",
+                                "users"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userId\": \"{{branchAdminTargetUserId}}\",\n  \"role\": \"BRANCH_ADMIN\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE POST /branches/:id/users - branch admin cannot manage another branch",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('branchId')) { throw new Error('branchId is required'); }",
+                                    "if (!pm.collectionVariables.get('branchAdminTargetUserId')) { throw new Error('branchAdminTargetUserId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/branches/{{branchId}}/users",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "branches",
+                                "{{branchId}}",
+                                "users"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"userId\": \"{{branchAdminTargetUserId}}\",\n  \"role\": \"STAFF\"\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
                 },
                 {
                     "name": "GET /branches/mine",
@@ -1181,6 +1946,302 @@
                         "body": {
                             "mode": "raw",
                             "raw": "{\n  \"branchId\": \"{{branchId}}\",\n  \"permissions\": [\n    {\n      \"feature\": \"MEMBERS\",\n      \"actions\": [\n        \"VIEW\",\n        \"CREATE_UPDATE\"\n      ]\n    },\n    {\n      \"feature\": \"PRODUCT_SALES\",\n      \"actions\": [\n        \"VIEW\"\n      ]\n    }\n  ]\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "GET /permissions/me - branch admin own branch",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('branch-admin context is not admin', function () { pm.expect(json).to.have.property('isAdmin', false); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/me?branchId={{secondBranchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "me"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{secondBranchId}}"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET /permissions/roles - branch admin own branch",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });",
+                                    "var json = {};",
+                                    "try { json = pm.response.json(); } catch (e) {}",
+                                    "pm.test('response is an array', function () { pm.expect(json).to.be.an('array'); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles?branchId={{secondBranchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{secondBranchId}}"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PUT /permissions/roles/:role - branch admin own branch",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('secondBranchId')) { throw new Error('secondBranchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 200', function () { pm.response.to.have.status(200); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles/STAFF?branchId={{secondBranchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles",
+                                "STAFF"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{secondBranchId}}"
+                                }
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"branchId\": \"{{secondBranchId}}\",\n  \"permissions\": [\n    {\n      \"feature\": \"MEMBERS\",\n      \"actions\": [\n        \"VIEW\"\n      ]\n    },\n    {\n      \"feature\": \"PRODUCT_SALES\",\n      \"actions\": [\n        \"VIEW\",\n        \"CREATE_UPDATE\"\n      ]\n    }\n  ]\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE GET /permissions/me - branch admin another branch",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('branchId')) { throw new Error('branchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/me?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "me"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "NEGATIVE PUT /permissions/roles/:role - branch admin another branch",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('branchAdminAccessToken')) { throw new Error('branchAdminAccessToken is required'); }",
+                                    "if (!pm.collectionVariables.get('branchId')) { throw new Error('branchId is required'); }"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('status is 403', function () { pm.response.to.have.status(403); });"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/permissions/roles/STAFF?branchId={{branchId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "permissions",
+                                "roles",
+                                "STAFF"
+                            ],
+                            "query": [
+                                {
+                                    "key": "branchId",
+                                    "value": "{{branchId}}"
+                                }
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"branchId\": \"{{branchId}}\",\n  \"permissions\": [\n    {\n      \"feature\": \"MEMBERS\",\n      \"actions\": [\n        \"VIEW\"\n      ]\n    }\n  ]\n}"
+                        },
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{branchAdminAccessToken}}",
+                                    "type": "string"
+                                }
+                            ]
                         }
                     }
                 },

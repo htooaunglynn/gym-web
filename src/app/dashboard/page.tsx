@@ -9,7 +9,11 @@ import { MetricsGrid } from "@/components/dashboard/MetricsGrid";
 import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
 import { RecentActivityTable } from "@/components/dashboard/RecentActivityTable";
 import { SkeletonCard } from "@/components/shared/SkeletonCard";
-import { apiClient, PaginationResponse } from "@/lib/apiClient";
+import {
+    apiClient,
+    normalizeListResponse,
+    PaginationResponse,
+} from "@/lib/apiClient";
 import { useToast } from "@/contexts/ToastContext";
 
 // Minimal types for the dashboard data fetches
@@ -92,9 +96,10 @@ export default function DashboardPage() {
 
             // Members
             if (membersResult.status === "fulfilled") {
+                const normalizedMembers = normalizeListResponse(membersResult.value);
                 setMetrics((prev) => ({
                     ...prev,
-                    totalMembers: membersResult.value.meta.totalItems,
+                    totalMembers: normalizedMembers.meta.totalItems,
                 }));
             } else {
                 showToast("Failed to load member count.", "error");
@@ -103,9 +108,10 @@ export default function DashboardPage() {
 
             // Trainers
             if (trainersResult.status === "fulfilled") {
+                const normalizedTrainers = normalizeListResponse(trainersResult.value);
                 setMetrics((prev) => ({
                     ...prev,
-                    totalTrainers: trainersResult.value.meta.totalItems,
+                    totalTrainers: normalizedTrainers.meta.totalItems,
                 }));
             } else {
                 showToast("Failed to load trainer count.", "error");
@@ -114,9 +120,10 @@ export default function DashboardPage() {
 
             // Equipment
             if (equipmentResult.status === "fulfilled") {
+                const normalizedEquipment = normalizeListResponse(equipmentResult.value);
                 setMetrics((prev) => ({
                     ...prev,
-                    totalEquipment: equipmentResult.value.meta.totalItems,
+                    totalEquipment: normalizedEquipment.meta.totalItems,
                 }));
             } else {
                 showToast("Failed to load equipment count.", "error");
@@ -125,9 +132,10 @@ export default function DashboardPage() {
 
             // Recent inventory movements
             if (movementsResult.status === "fulfilled") {
+                const normalizedMovements = normalizeListResponse(movementsResult.value);
                 setMetrics((prev) => ({
                     ...prev,
-                    recentMovements: movementsResult.value.data.slice(0, 5),
+                    recentMovements: normalizedMovements.data.slice(0, 5),
                 }));
             } else {
                 showToast("Failed to load recent activity.", "error");
@@ -136,9 +144,12 @@ export default function DashboardPage() {
 
             // Active subscriptions count (Requirement 3.3)
             if (subscriptionsResult.status === "fulfilled") {
+                const normalizedSubscriptions = normalizeListResponse(
+                    subscriptionsResult.value,
+                );
                 setMetrics((prev) => ({
                     ...prev,
-                    activeSubscriptionCount: subscriptionsResult.value.meta.totalItems,
+                    activeSubscriptionCount: normalizedSubscriptions.meta.totalItems,
                 }));
             } else {
                 showToast("Failed to load subscription count.", "error");
@@ -147,9 +158,8 @@ export default function DashboardPage() {
 
             // Low-stock check: any product with quantity <= 5 (Requirement 3.4)
             if (productsResult.status === "fulfilled") {
-                const hasLowStock = productsResult.value.data.some(
-                    (p) => p.quantity <= 5,
-                );
+                const normalizedProducts = normalizeListResponse(productsResult.value);
+                const hasLowStock = normalizedProducts.data.some((p) => p.quantity <= 5);
                 setMetrics((prev) => ({ ...prev, hasLowStock }));
             } else {
                 showToast("Failed to load product stock data.", "error");

@@ -56,6 +56,8 @@ export function SaleModal({
     onSuccess,
     sale,
 }: SaleModalProps) {
+    const isViewMode = Boolean(sale);
+
     const [selectedMember, setSelectedMember] = useState<MemberSummary | null>(
         null,
     );
@@ -171,6 +173,11 @@ export function SaleModal({
 
     const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
         e?.preventDefault();
+        if (isViewMode) {
+            onClose();
+            return;
+        }
+
         if (cart.length === 0) {
             setError("Please add at least one product to the sale.");
             return;
@@ -195,7 +202,7 @@ export function SaleModal({
 
         try {
             const payload = {
-                memberId: selectedMember?.id || null,
+                ...(selectedMember?.id ? { memberId: selectedMember.id } : {}),
                 items: cart.map((item) => ({
                     productId: item.id,
                     quantity: item.quantity,
@@ -233,7 +240,7 @@ export function SaleModal({
                                 <ShoppingCart className="w-6 h-6" />
                             </div>
                             <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
-                                New Sale
+                                {isViewMode ? "Sale Details" : "New Sale"}
                             </h2>
                         </div>
                     </div>
@@ -455,11 +462,13 @@ export function SaleModal({
 
                     <button
                         onClick={handleSubmit}
-                        disabled={loading || cart.length === 0}
+                        disabled={loading || (!isViewMode && cart.length === 0)}
                         className="w-full py-5 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg shadow-xl shadow-gray-900/10 transition-all flex items-center justify-center gap-3 disabled:opacity-30 disabled:grayscale"
                     >
                         {loading ? (
                             "Processing..."
+                        ) : isViewMode ? (
+                            "Close"
                         ) : (
                             <>
                                 <ShoppingCart className="w-5 h-5" />

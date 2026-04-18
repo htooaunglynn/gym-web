@@ -8,6 +8,7 @@ import React, {
     useMemo,
     useState,
 } from "react";
+import { ApiClientError, apiClient } from "@/lib/apiClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,10 @@ export type PermissionAction =
 export interface RolePermission {
     feature: PermissionFeature;
     actions: PermissionAction[];
+}
+
+interface CurrentUserPermissionMatrix {
+    permissions: RolePermission[];
 }
 
 export interface AuthUser {
@@ -135,31 +140,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     const [permissions, setPermissions] = useState<RolePermission[]>([]);
 
-    // On mount, restore permissions from GET /auth/me when a token exists
+    const refreshPermissions = useCallback(async (branchId?: string | null) => {
+        try {
+            const data = await apiClient<CurrentUserPermissionMatrix>(
+                "/permissions/me",
+                {
+                    suppressErrorToastForStatuses: [403],
+                    params: branchId ? { branchId } : undefined,
+                },
+            );
+            if (Array.isArray(data.permissions)) {
+                setPermissions(data.permissions);
+                return;
+            }
+            setPermissions([]);
+        } catch (error) {
+            if (error instanceof ApiClientError && error.status === 403) {
+                // Member accounts do not have role-permission matrix access.
+                setPermissions([]);
+                return;
+            }
+            setPermissions([]);
+        }
+    }, []);
+
+    // On mount, restore permissions for authenticated staff/admin accounts.
     useEffect(() => {
         const token = localStorage.getItem("accessToken");
         if (!token) return;
 
-        fetch("http://localhost:3000/api/v1/auth/me", {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-            },
-        })
-            .then((res) => {
-                if (res.ok)
-                    return res.json() as Promise<{ permissions?: RolePermission[] }>;
-                return null;
-            })
-            .then((data) => {
-                if (data && Array.isArray(data.permissions)) {
-                    setPermissions(data.permissions);
-                }
-            })
-            .catch(() => {
-                // Non-fatal: permissions will be empty
-            });
-    }, []);
+        void Promise.resolve().then(() => refreshPermissions(activeBranchId));
+    }, [activeBranchId, refreshPermissions]);
 
     const login = useCallback(async (token: string) => {
         localStorage.setItem("accessToken", token);
@@ -168,26 +179,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const authUser = payloadToUser(payload);
             setUser(authUser);
             setActiveBranchIdState(authUser.branchId);
+            await refreshPermissions(authUser.branchId);
+            return;
         }
 
-        // Fetch permission matrix from GET /auth/me
-        try {
-            const res = await fetch("http://localhost:3000/api/v1/auth/me", {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-            });
-            if (res.ok) {
-                const data = (await res.json()) as { permissions?: RolePermission[] };
-                if (Array.isArray(data.permissions)) {
-                    setPermissions(data.permissions);
-                }
-            }
-        } catch {
-            // Non-fatal: permissions will be empty, guards will deny access
-        }
-    }, []);
+        await refreshPermissions();
+    }, [refreshPermissions]);
 
     const logout = useCallback(() => {
         localStorage.removeItem("accessToken");

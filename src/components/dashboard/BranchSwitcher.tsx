@@ -1,13 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Building2, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiClient } from "@/lib/apiClient";
+import { apiClient, normalizeListResponse } from "@/lib/apiClient";
 
 interface Branch {
     id: string;
     name: string;
+}
+
+/** Normalise API shape — handles both `id` and `_id` (Mongoose) */
+function normaliseBranch(raw: Record<string, unknown>): Branch {
+    return {
+        id: (raw.id ?? raw._id ?? "") as string,
+        name: (raw.name ?? "") as string,
+    };
 }
 
 /**
@@ -21,9 +29,16 @@ export function BranchSwitcher() {
     const { user, activeBranchId, setActiveBranchId } = useAuth();
     const [branches, setBranches] = useState<Branch[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const mounted = useSyncExternalStore(
+        () => () => { },
+        () => true,
+        () => false,
+    );
 
     // Only ADMIN users see the switcher
     const isAdmin = user?.globalRole === "ADMIN";
+
+    // Removed the useEffect that sets mounted state
 
     useEffect(() => {
         if (!isAdmin) return;
@@ -32,11 +47,11 @@ export function BranchSwitcher() {
             setIsLoading(true);
             try {
                 // The endpoint may return an array or a paginated response
-                const res = await apiClient<Branch[] | { data: Branch[] }>(
-                    "/branches/mine",
-                );
-                const list = Array.isArray(res) ? res : (res.data ?? []);
-                setBranches(list);
+                const res = await apiClient<
+                    Record<string, unknown>[] | { data: Record<string, unknown>[] }
+                >("/branches/mine");
+                const raw = normalizeListResponse(res).data;
+                setBranches(raw.map(normaliseBranch));
             } catch {
                 // apiClient already shows an error toast
             } finally {
@@ -47,7 +62,7 @@ export function BranchSwitcher() {
         fetchBranches();
     }, [isAdmin]);
 
-    if (!isAdmin) return null;
+    if (!mounted || !isAdmin) return null;
 
     return (
         <div className="relative flex items-center gap-2">
@@ -72,8 +87,8 @@ export function BranchSwitcher() {
                                 No branches
                             </option>
                         )}
-                        {branches.map((branch) => (
-                            <option key={branch.id} value={branch.id}>
+                        {branches.map((branch, index) => (
+                            <option key={branch.id || index} value={branch.id}>
                                 {branch.name}
                             </option>
                         ))}
