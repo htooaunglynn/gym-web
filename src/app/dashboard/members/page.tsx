@@ -1,168 +1,86 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import Image from "next/image";
-import { DataTable, ColumnDef } from "@/components/crud/DataTable";
-import { AddMemberModal, Member } from "@/components/crud/AddMemberModal";
+import { useState } from "react";
+import { DataTable } from "@/components/crud/DataTable";
+import { AddMemberModal } from "@/components/crud/AddMemberModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
-import { TrainerSelect } from "@/components/forms/TrainerSelect";
-import {
-    apiClient,
-    normalizeListResponse,
-    PaginationResponse,
-    PaginationMeta,
-} from "@/lib/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/contexts/ToastContext";
 import { usePermission } from "@/hooks/usePermission";
 import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
 import {
     ALL_BRANCHES_READONLY_MESSAGE,
     isAllBranchesScope,
 } from "@/lib/branchScope";
-import { X } from "lucide-react";
-
-interface Trainer {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-}
+import { Member } from "@/types/member";
+import { useMembers } from "@/hooks/useMembers";
+import { MembersHeader } from "@/components/dashboard/members/MembersHeader";
+import { AssignTrainerModal } from "@/components/dashboard/members/AssignTrainerModal";
+import Image from "next/image";
 
 export default function MembersPage() {
     const { user, activeBranchId } = useAuth();
-    const { showToast } = useToast();
     const canCreateUpdate = usePermission("MEMBERS", "CREATE_UPDATE");
     const canDelete = usePermission("MEMBERS", "DELETE");
     const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
-    const [members, setMembers] = useState<Member[]>([]);
-    const [meta, setMeta] = useState<PaginationMeta>({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
     const [page, setPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(true);
+    const { members, meta, isLoading, deleteMember, assignTrainer, refresh } = useMembers(page);
+    
+    // Tab state (for UI only in this basic version, could be passed to hook if API supports filtering)
     const [activeTab, setActiveTab] = useState("All Members");
 
-    // Add / Edit modal state
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedMember, setSelectedMember] = useState<Member | undefined>(
-        undefined,
-    );
-
-    // Delete confirmation state
-    const [confirmDelete, setConfirmDelete] = useState<Member | undefined>(
-        undefined,
-    );
+    // Modals state
+    const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<Member | undefined>(undefined);
+    const [confirmDelete, setConfirmDelete] = useState<Member | undefined>(undefined);
     const [isDeleting, setIsDeleting] = useState(false);
-
-    // Assign Trainer modal state
+    
     const [isTrainerModalOpen, setIsTrainerModalOpen] = useState(false);
     const [trainerMemberId, setTrainerMemberId] = useState<string | null>(null);
-    const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
     const [isAssigningTrainer, setIsAssigningTrainer] = useState(false);
-
-    const fetchMembers = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const result = await apiClient<PaginationResponse<Member>>("/members", {
-                params: { page, limit: 20, includeDeleted: false },
-            });
-            const normalized = normalizeListResponse(result);
-            setMembers(normalized.data);
-            setMeta(normalized.meta);
-        } catch {
-            // apiClient already shows an error toast
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page]);
-
-    useEffect(() => {
-        fetchMembers();
-    }, [fetchMembers, activeTab]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
 
     const handleEditClick = (member: Member) => {
         setSelectedMember(member);
-        setIsModalOpen(true);
-    };
-
-    const handleModalClose = () => {
-        setIsModalOpen(false);
-        setSelectedMember(undefined);
-    };
-
-    const handleModalSuccess = () => {
-        fetchMembers();
-    };
-
-    const handleDeleteClick = (member: Member) => {
-        setConfirmDelete(member);
+        setIsAddEditModalOpen(true);
     };
 
     const handleDeleteConfirm = async () => {
         if (!confirmDelete) return;
         setIsDeleting(true);
-        try {
-            await apiClient(`/members/${confirmDelete.id}`, { method: "DELETE" });
-            showToast("Member removed successfully", "success");
-            setConfirmDelete(undefined);
-            fetchMembers();
-        } catch {
-            // apiClient already shows an error toast
-        } finally {
-            setIsDeleting(false);
-        }
+        const success = await deleteMember(confirmDelete.id);
+        if (success) setConfirmDelete(undefined);
+        setIsDeleting(false);
     };
 
-    const handleAssignTrainerClick = (member: Member) => {
-        setTrainerMemberId(member.id);
-        // Pre-select the current trainer if any
-        setSelectedTrainer(null);
-        setIsTrainerModalOpen(true);
-    };
-
-    const handleAssignTrainerConfirm = async () => {
+    const handleAssignTrainerConfirm = async (trainer: any) => {
         if (!trainerMemberId) return;
         setIsAssigningTrainer(true);
-        try {
-            await apiClient(`/members/${trainerMemberId}`, {
-                method: "PATCH",
-                body: JSON.stringify({ trainerId: selectedTrainer?.id ?? null }),
-            });
-            showToast("Trainer assigned successfully", "success");
+        const success = await assignTrainer(trainerMemberId, trainer?.id ?? null);
+        if (success) {
             setIsTrainerModalOpen(false);
             setTrainerMemberId(null);
-            setSelectedTrainer(null);
-            fetchMembers();
-        } catch {
-            // apiClient already shows an error toast
-        } finally {
-            setIsAssigningTrainer(false);
         }
+        setIsAssigningTrainer(false);
     };
 
     // ── Column definitions ─────────────────────────────────────────────────────
 
-    const columns: ColumnDef<Member>[] = [
+    const columns = [
         {
             header: "Id",
             className: "w-[80px]",
-            accessor: (row) => (
+            accessor: (row: Member) => (
                 <span className="text-gray-500">#{row.id.slice(0, 4)}</span>
             ),
         },
         {
             header: "Name",
             className: "min-w-[150px]",
-            accessor: (row) => (
+            accessor: (row: Member) => (
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden relative shadow-sm">
                         <Image
@@ -182,7 +100,7 @@ export default function MembersPage() {
         {
             header: "Trainer Status",
             className: "w-[120px]",
-            accessor: (row) => (
+            accessor: (row: Member) => (
                 <span className="text-gray-600 font-semibold">
                     {row.trainerId ? "Has Trainer" : "Independent"}
                 </span>
@@ -191,7 +109,7 @@ export default function MembersPage() {
         {
             header: "Phone",
             className: "w-[160px]",
-            accessor: (row) => (
+            accessor: (row: Member) => (
                 <div className="flex items-center gap-1.5 text-gray-500 font-medium">
                     <svg
                         className="w-3.5 h-3.5"
@@ -226,34 +144,13 @@ export default function MembersPage() {
     return (
         <PermissionGuard feature="MEMBERS" action="VIEW">
             <div className="animate-in fade-in max-w-[1600px] mx-auto pb-20">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2 mt-4">
-                            Members
-                        </h1>
-                        <p className="text-gray-500 font-medium text-sm">
-                            Manage your gym members, assign trainers, and track their
-                            information.
-                        </p>
-                    </div>
-                    <PermissionGuard
-                        feature="MEMBERS"
-                        action="CREATE_UPDATE"
-                        fallback={null}
-                    >
-                        {!isAllBranchesMode ? (
-                            <button
-                                onClick={() => {
-                                    setSelectedMember(undefined);
-                                    setIsModalOpen(true);
-                                }}
-                                className="bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-md transition-colors"
-                            >
-                                + Add Member
-                            </button>
-                        ) : null}
-                    </PermissionGuard>
-                </div>
+                <MembersHeader 
+                    onAddClick={() => {
+                        setSelectedMember(undefined);
+                        setIsAddEditModalOpen(true);
+                    }}
+                    isAllBranchesMode={isAllBranchesMode}
+                />
 
                 <BranchScopeNotice
                     isVisible={isAllBranchesMode}
@@ -276,7 +173,10 @@ export default function MembersPage() {
                                 },
                                 {
                                     label: "Assign Trainer",
-                                    onClick: handleAssignTrainerClick,
+                                    onClick: (member: Member) => {
+                                        setTrainerMemberId(member.id);
+                                        setIsTrainerModalOpen(true);
+                                    },
                                 },
                             ]
                             : []),
@@ -284,7 +184,7 @@ export default function MembersPage() {
                             ? [
                                 {
                                     label: "Remove",
-                                    onClick: handleDeleteClick,
+                                    onClick: (member: Member) => setConfirmDelete(member),
                                     className: "text-[#E84C4C] hover:bg-red-50",
                                 },
                             ]
@@ -298,15 +198,17 @@ export default function MembersPage() {
                     onPageChange={setPage}
                 />
 
-                {/* Add / Edit Member Modal */}
+                {/* Modals */}
                 <AddMemberModal
-                    isOpen={isModalOpen}
-                    onClose={handleModalClose}
-                    onSuccess={handleModalSuccess}
+                    isOpen={isAddEditModalOpen}
+                    onClose={() => {
+                        setIsAddEditModalOpen(false);
+                        setSelectedMember(undefined);
+                    }}
+                    onSuccess={refresh}
                     member={selectedMember}
                 />
 
-                {/* Delete Confirmation Dialog */}
                 <ConfirmDialog
                     open={!!confirmDelete}
                     title="Remove Member"
@@ -321,58 +223,15 @@ export default function MembersPage() {
                     isLoading={isDeleting}
                 />
 
-                {/* Assign Trainer Modal */}
-                {isTrainerModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden shadow-black/10">
-                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                <h2 className="text-xl font-bold text-gray-900">
-                                    Assign Trainer
-                                </h2>
-                                <button
-                                    onClick={() => {
-                                        setIsTrainerModalOpen(false);
-                                        setTrainerMemberId(null);
-                                        setSelectedTrainer(null);
-                                    }}
-                                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-900"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="p-6">
-                                <TrainerSelect
-                                    onSelect={setSelectedTrainer}
-                                    selectedTrainerId={selectedTrainer?.id}
-                                    label="Select Trainer"
-                                />
-
-                                <div className="flex items-center justify-end gap-3 mt-8">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsTrainerModalOpen(false);
-                                            setTrainerMemberId(null);
-                                            setSelectedTrainer(null);
-                                        }}
-                                        className="px-6 py-2.5 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleAssignTrainerConfirm}
-                                        disabled={isAssigningTrainer}
-                                        className="px-6 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-semibold rounded-xl shadow-md transition-colors disabled:opacity-50"
-                                    >
-                                        {isAssigningTrainer ? "Assigning..." : "Assign Trainer"}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <AssignTrainerModal
+                    isOpen={isTrainerModalOpen}
+                    isLoading={isAssigningTrainer}
+                    onClose={() => {
+                        setIsTrainerModalOpen(false);
+                        setTrainerMemberId(null);
+                    }}
+                    onConfirm={handleAssignTrainerConfirm}
+                />
             </div>
         </PermissionGuard>
     );

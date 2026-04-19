@@ -1,107 +1,53 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus } from "lucide-react";
-import { DataTable, ColumnDef } from "@/components/crud/DataTable";
-import { BranchModal, Branch } from "@/components/crud/BranchModal";
+import { useState } from "react";
+import { DataTable } from "@/components/crud/DataTable";
+import { BranchModal } from "@/components/crud/BranchModal";
 import { AssignUserModal } from "@/components/crud/AssignUserModal";
 import { PaginationControls } from "@/components/shared/PaginationControls";
 import { PermissionGuard } from "@/components/shared/PermissionGuard";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import {
-    apiClient,
-    normalizeListResponse,
-    PaginationResponse,
-} from "@/lib/apiClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
-
-// ─── Page Component ───────────────────────────────────────────────────────────
+import { useBranches } from "@/hooks/useBranches";
+import { BranchesHeader } from "@/components/dashboard/branches/BranchesHeader";
+import { Branch } from "@/types/branch";
 
 export default function BranchesPage() {
     const { user } = useAuth();
-    // ── State ──────────────────────────────────────────────────────────────────
-    const [rows, setRows] = useState<Branch[]>([]);
-    const [meta, setMeta] = useState({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
     const [page, setPage] = useState(1);
-    const [isLoading, setIsLoading] = useState(true);
+    const { branches, meta, isLoading, deleteBranch, refresh } = useBranches(page);
 
-    // Branch modal (create / edit)
+    // Modals state
     const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
-    const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(
-        undefined,
-    );
-
-    // Assign user modal
+    const [selectedBranch, setSelectedBranch] = useState<Branch | undefined>(undefined);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [assignBranchId, setAssignBranchId] = useState<string>("");
-
-    // Delete confirmation
-    const [confirmDelete, setConfirmDelete] = useState<Branch | undefined>(
-        undefined,
-    );
+    const [confirmDelete, setConfirmDelete] = useState<Branch | undefined>(undefined);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // ── Permissions ────────────────────────────────────────────────────────────
+    // Permissions
     const canUpdate = usePermission("BRANCHES", "CREATE_UPDATE");
-    const canManageAssignments = usePermission(
-        "BRANCH_USER_ASSIGNMENTS",
-        "MANAGE",
-    );
+    const canManageAssignments = usePermission("BRANCH_USER_ASSIGNMENTS", "MANAGE");
     const canCreateBranch = user?.globalRole === "ADMIN";
     const canDelete = user?.globalRole === "ADMIN";
 
-    // ── Data Fetch ─────────────────────────────────────────────────────────────
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const res = await apiClient<PaginationResponse<Branch>>("/branches", {
-                params: {
-                    page,
-                    limit: 20,
-                    includeDeleted: false,
-                    includeUsers: true,
-                },
-            });
-            const normalized = normalizeListResponse(res);
-            setRows(normalized.data);
-            setMeta(normalized.meta);
-        } catch {
-            // apiClient handles toast
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page]);
+    // ── Handlers ──────────────────────────────────────────────────────────────
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
-    // ── Delete ─────────────────────────────────────────────────────────────────
     const handleDeleteConfirm = async () => {
         if (!confirmDelete) return;
         setIsDeleting(true);
-        try {
-            await apiClient(`/branches/${confirmDelete.id}`, { method: "DELETE" });
-            setConfirmDelete(undefined);
-            fetchData();
-        } catch {
-            // apiClient handles toast
-        } finally {
-            setIsDeleting(false);
-        }
+        const success = await deleteBranch(confirmDelete.id);
+        if (success) setConfirmDelete(undefined);
+        setIsDeleting(false);
     };
 
-    // ── Columns ────────────────────────────────────────────────────────────────
-    const columns: ColumnDef<Branch>[] = [
+    // ── Column definitions ─────────────────────────────────────────────────────
+
+    const columns = [
         {
             header: "ID",
-            accessor: (row) => (
+            accessor: (row: Branch) => (
                 <span className="font-mono text-xs text-gray-500">
                     {row.id.slice(0, 8)}…
                 </span>
@@ -109,103 +55,80 @@ export default function BranchesPage() {
         },
         {
             header: "Name",
-            accessor: (row) => (
+            accessor: (row: Branch) => (
                 <span className="font-semibold text-gray-900">{row.name}</span>
             ),
         },
         {
             header: "Description",
-            accessor: (row) => (
+            accessor: (row: Branch) => (
                 <span className="text-gray-500 text-sm truncate max-w-[200px] block">
-                    {row.description ?? "—"}
+                    {(row as any).description ?? "—"}
                 </span>
             ),
         },
         {
             header: "Assigned Users",
-            accessor: (row) => (
+            accessor: (row: Branch) => (
                 <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-sm font-bold text-gray-700">
-                    {row.users?.length ?? 0}
+                    {(row as any).users?.length ?? 0}
                 </span>
             ),
         },
         {
             header: "Created",
-            accessor: (row) => new Date(row.createdAt).toLocaleDateString(),
+            accessor: (row: Branch) => new Date(row.createdAt).toLocaleDateString(),
         },
     ];
 
-    // ── Actions ────────────────────────────────────────────────────────────────
-    const actions = [
-        ...(canUpdate
-            ? [
-                {
-                    label: "Edit",
-                    onClick: (row: Branch) => {
-                        setSelectedBranch(row);
-                        setIsBranchModalOpen(true);
-                    },
-                },
-            ]
-            : []),
-        ...(canManageAssignments
-            ? [
-                {
-                    label: "Assign User",
-                    onClick: (row: Branch) => {
-                        setAssignBranchId(row.id);
-                        setIsAssignModalOpen(true);
-                    },
-                    className: "text-blue-600",
-                },
-            ]
-            : []),
-        ...(canDelete
-            ? [
-                {
-                    label: "Delete",
-                    onClick: (row: Branch) => setConfirmDelete(row),
-                    className: "text-red-500",
-                },
-            ]
-            : []),
-    ];
-
-    // ── Render ─────────────────────────────────────────────────────────────────
     return (
         <PermissionGuard feature="BRANCHES" action="VIEW">
             <div className="animate-in fade-in max-w-[1600px] mx-auto pb-20">
-                {/* Page Header */}
-                <div className="flex items-center justify-between mb-10">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2 mt-4 tracking-tight">
-                            Branches
-                        </h1>
-                        <p className="text-gray-500 font-medium text-sm">
-                            Manage gym branch locations and their staff assignments.
-                        </p>
-                    </div>
+                <BranchesHeader 
+                    onAddClick={() => {
+                        setSelectedBranch(undefined);
+                        setIsBranchModalOpen(true);
+                    }}
+                    canCreateBranch={canCreateBranch}
+                />
 
-                    {/* Add Branch — guarded by CREATE_UPDATE */}
-                    {canCreateBranch && (
-                        <button
-                            onClick={() => {
-                                setSelectedBranch(undefined);
-                                setIsBranchModalOpen(true);
-                            }}
-                            className="bg-[#e60023] hover:bg-[#c4001f] text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-[#e60023]/20 transition-all flex items-center gap-2"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Add Branch
-                        </button>
-                    )}
-                </div>
-
-                {/* Data Table */}
                 <DataTable
                     columns={columns}
-                    data={rows}
-                    actions={actions}
+                    data={branches}
+                    actions={[
+                        ...(canUpdate
+                            ? [
+                                {
+                                    label: "Edit",
+                                    onClick: (row: Branch) => {
+                                        setSelectedBranch(row);
+                                        setIsBranchModalOpen(true);
+                                    },
+                                },
+                            ]
+                            : []),
+                        ...(canManageAssignments
+                            ? [
+                                {
+                                    label: "Assign User",
+                                    onClick: (row: Branch) => {
+                                        setAssignBranchId(row.id);
+                                        setIsAssignModalOpen(true);
+                                    },
+                                    className: "text-blue-600",
+                                },
+                            ]
+                            : []),
+                        ...(canDelete
+                            ? [
+                                {
+                                    label: "Delete",
+                                    onClick: (row: Branch) => setConfirmDelete(row),
+                                    className: "text-red-500",
+                                },
+                            ]
+                            : []),
+                    ]}
                     isLoading={isLoading}
                     emptyState={
                         <div className="flex flex-col items-center gap-2 py-4">
@@ -225,36 +148,32 @@ export default function BranchesPage() {
                     }
                 />
 
-                {/* Pagination */}
                 <PaginationControls
-                    currentPage={meta.page}
+                    currentPage={page}
                     totalPages={meta.totalPages}
                     onPageChange={setPage}
                 />
 
-                {/* Branch Modal (create / edit) */}
                 <BranchModal
                     isOpen={isBranchModalOpen}
                     onClose={() => {
                         setIsBranchModalOpen(false);
                         setSelectedBranch(undefined);
                     }}
-                    onSuccess={fetchData}
-                    branch={selectedBranch}
+                    onSuccess={refresh}
+                    branch={selectedBranch as any}
                 />
 
-                {/* Assign User Modal */}
                 <AssignUserModal
                     isOpen={isAssignModalOpen}
                     onClose={() => {
                         setIsAssignModalOpen(false);
                         setAssignBranchId("");
                     }}
-                    onSuccess={fetchData}
+                    onSuccess={refresh}
                     branchId={assignBranchId}
                 />
 
-                {/* Delete Confirmation Dialog */}
                 <ConfirmDialog
                     open={Boolean(confirmDelete)}
                     title="Delete Branch"

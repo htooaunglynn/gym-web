@@ -1,9 +1,8 @@
 /**
  * Centralized HTTP client for all API requests
- * Base URL: http://localhost:3000/api/v1
  */
 
-const API_BASE_URL = "http://localhost:3000/api/v1";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api/v1";
 
 export interface ApiClientOptions extends RequestInit {
     params?: Record<string, string | number | boolean | undefined | null>;
@@ -89,16 +88,63 @@ function showToast(message: string, type: "success" | "error" | "warning") {
 }
 
 /**
+ * Helper to handle API errors consistently
+ */
+async function handleResponseError(response: Response, suppressErrorToastForStatuses: number[], path: string) {
+    const errorData = await response.json().catch(() => ({}));
+    const status = response.status;
+    const shouldShowToast = !suppressErrorToastForStatuses.includes(status);
+
+    let message = errorData.message || `Request failed with status ${status}`;
+
+    switch (status) {
+        case 400:
+            if (shouldShowToast) {
+                if (Array.isArray(errorData.message)) {
+                    message = errorData.message.join("; ");
+                    showToast(message, "error");
+                } else {
+                    showToast(message, "error");
+                }
+            }
+            break;
+        case 401:
+            if (path !== "/auth/login") {
+                if (typeof window !== "undefined") {
+                    localStorage.removeItem("accessToken");
+                    window.location.href = "/login";
+                }
+            }
+            break;
+        case 403:
+        case 404:
+        case 409:
+            if (shouldShowToast) {
+                showToast(message, "error");
+            }
+            break;
+        default:
+            if (status >= 500) {
+                message = "An unexpected server error occurred. Please try again.";
+                if (shouldShowToast) {
+                    showToast(message, "error");
+                }
+            } else if (shouldShowToast) {
+                showToast(message, "error");
+            }
+    }
+
+    throw new ApiClientError(message, status);
+}
+
+/**
  * Centralized API client with automatic token attachment and error handling
  */
 export async function apiClient<T>(
     path: string,
     options: ApiClientOptions = {},
 ): Promise<T> {
-    const { params, suppressErrorToastForStatuses, ...fetchOptions } = options;
-
-    const shouldShowToast = (status: number): boolean =>
-        !(suppressErrorToastForStatuses ?? []).includes(status);
+    const { params, suppressErrorToastForStatuses = [], ...fetchOptions } = options;
 
     // Build URL with query parameters
     let url = `${API_BASE_URL}${path}`;
@@ -115,24 +161,22 @@ export async function apiClient<T>(
         }
     }
 
-    // Attach Bearer token from localStorage
-    const token =
-        typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+    // Attach headers
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...(fetchOptions.headers as Record<string, string>),
     };
 
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-    }
+    if (typeof window !== "undefined") {
+        const token = localStorage.getItem("accessToken");
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
 
-    const activeBranchId =
-        typeof window !== "undefined"
-            ? localStorage.getItem("activeBranchId")
-            : null;
-    if (activeBranchId) {
-        headers["x-branch-id"] = activeBranchId;
+        const activeBranchId = localStorage.getItem("activeBranchId");
+        if (activeBranchId) {
+            headers["x-branch-id"] = activeBranchId;
+        }
     }
 
     try {
@@ -141,108 +185,21 @@ export async function apiClient<T>(
             headers,
         });
 
-        // Handle HTTP error responses
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-
-            switch (response.status) {
-                case 400: {
-                    // Validation errors - display each field error
-                    if (shouldShowToast(response.status)) {
-                        if (Array.isArray(errorData.message)) {
-                            const errorMessages = errorData.message.join("; ");
-                            showToast(errorMessages, "error");
-                        } else {
-                            showToast(errorData.message || "Invalid request", "error");
-                        }
-                    }
-                    throw new ApiClientError(
-                        errorData.message || "Validation error",
-                        response.status,
-                    );
-                }
-
-                case 401: {
-                    const message = errorData.message || "Unauthorized";
-
-                    // For login endpoint, let caller render inline credential errors.
-                    if (path !== "/auth/login") {
-                        if (typeof window !== "undefined") {
-                            localStorage.removeItem("accessToken");
-                            window.location.href = "/login";
-                        }
-                    }
-
-                    throw new ApiClientError(message, response.status);
-                }
-
-                case 403: {
-                    // Forbidden - show error but don't redirect
-                    const message =
-                        errorData.message ||
-                        "You do not have permission to perform this action";
-                    if (shouldShowToast(response.status)) {
-                        showToast(message, "error");
-                    }
-                    throw new ApiClientError(message, response.status);
-                }
-
-                case 404: {
-                    // Not found
-                    const message = errorData.message || "Resource not found";
-                    if (shouldShowToast(response.status)) {
-                        showToast(message, "error");
-                    }
-                    throw new ApiClientError(message, response.status);
-                }
-
-                case 409: {
-                    // Conflict (e.g., duplicate email/phone)
-                    const message = errorData.message || "A conflict occurred";
-                    if (shouldShowToast(response.status)) {
-                        showToast(message, "error");
-                    }
-                    throw new ApiClientError(message, response.status);
-                }
-
-                default: {
-                    // Handle all 5xx server errors generically
-                    if (response.status >= 500) {
-                        const message =
-                            "An unexpected server error occurred. Please try again.";
-                        if (shouldShowToast(response.status)) {
-                            showToast(message, "error");
-                        }
-                        throw new ApiClientError(message, response.status);
-                    }
-                    const message =
-                        errorData.message ||
-                        `Request failed with status ${response.status}`;
-                    if (shouldShowToast(response.status)) {
-                        showToast(message, "error");
-                    }
-                    throw new ApiClientError(message, response.status);
-                }
-            }
+            await handleResponseError(response, suppressErrorToastForStatuses, path);
         }
 
-        // Success - parse and return JSON
-        const data = await response.json();
-        return data as T;
+        return await response.json() as T;
     } catch (error) {
-        // Network errors (failed to fetch, connection refused, etc.)
-        if (
-            error instanceof TypeError &&
-            (error.message.includes("fetch") ||
-                error.message.includes("Failed to fetch") ||
-                error.message.includes("NetworkError") ||
-                error.message.includes("network"))
-        ) {
+        if (error instanceof ApiClientError) throw error;
+
+        // Network errors
+        if (error instanceof TypeError && (error.message.toLowerCase().includes("fetch") || error.message.toLowerCase().includes("network"))) {
             const message = "Unable to reach the server. Check your connection.";
             showToast(message, "error");
             throw new ApiClientError(message, 0);
         }
-        // Re-throw other errors (already handled above)
         throw error;
     }
 }
+
