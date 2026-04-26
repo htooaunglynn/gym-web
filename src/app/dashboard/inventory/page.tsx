@@ -44,6 +44,14 @@ export default function InventoryPage() {
     const [meta, setMeta] = useState(DEFAULT_META);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All Actions");
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -62,7 +70,13 @@ export default function InventoryPage() {
             const result = await apiClient<PaginationResponse<InventoryMovement>>(
                 "/inventory-movements",
                 {
-                    params: { page, limit: 20, movementType },
+                    params: { 
+                        page, 
+                        limit: 20, 
+                        movementType,
+                        sortBy,
+                        sortOrder
+                    },
                 },
             );
             const normalized = normalizeListResponse(result);
@@ -73,7 +87,7 @@ export default function InventoryPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [activeBranchId, page, activeTab]);
+    }, [activeBranchId, page, activeTab, sortBy, sortOrder]);
 
     useEffect(() => {
         setPage(1);
@@ -112,6 +126,7 @@ export default function InventoryPage() {
                     })}
                 </span>
             ),
+            sortKey: "occurredAt",
         },
         {
             header: "Type",
@@ -123,6 +138,7 @@ export default function InventoryPage() {
                     {row.movementType}
                 </span>
             ),
+            sortKey: "movementType",
         },
         {
             header: "Equipment ID",
@@ -132,6 +148,7 @@ export default function InventoryPage() {
                     {row.equipmentId.slice(0, 8)}
                 </span>
             ),
+            sortKey: "equipmentId",
         },
         {
             header: "Qty",
@@ -148,6 +165,7 @@ export default function InventoryPage() {
                     {row.quantity}
                 </span>
             ),
+            sortKey: "quantityDelta",
         },
         {
             header: "Reason",
@@ -155,6 +173,7 @@ export default function InventoryPage() {
             accessor: (row) => (
                 <span className="text-gray-900 font-semibold">{row.reason}</span>
             ),
+            sortKey: "reason",
         },
     ];
 
@@ -195,6 +214,8 @@ export default function InventoryPage() {
                     columns={columns}
                     data={movements}
                     isLoading={isLoading}
+                    sortable={true}
+                    onSort={handleSort}
                     tabs={[...tabs]}
                     activeTab={activeTab}
                     onTabChange={(tab) => {

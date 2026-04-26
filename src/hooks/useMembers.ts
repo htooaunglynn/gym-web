@@ -17,12 +17,19 @@ export function useMembers(page = 1, limit = 20) {
     const [members, setMembers] = useState<Member[]>([]);
     const [meta, setMeta] = useState<PaginationMeta>(DEFAULT_META);
     const [isLoading, setIsLoading] = useState(true);
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const { showToast } = useToast();
 
     const fetchMembers = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await MemberService.getAll({ page, limit });
+            const response = await MemberService.getAll({ 
+                page, 
+                limit,
+                sortBy,
+                sortOrder
+            });
             setMembers(response.data ?? []);
             setMeta(response.meta ?? DEFAULT_META);
         } catch {
@@ -30,7 +37,7 @@ export function useMembers(page = 1, limit = 20) {
         } finally {
             setIsLoading(false);
         }
-    }, [page, limit, activeBranchId]);
+    }, [page, limit, activeBranchId, sortBy, sortOrder]);
 
     useEffect(() => {
         setMembers([]);
@@ -64,6 +71,11 @@ export function useMembers(page = 1, limit = 20) {
         }
     };
 
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     return {
         members,
         meta,
@@ -71,5 +83,6 @@ export function useMembers(page = 1, limit = 20) {
         refresh: fetchMembers,
         deleteMember,
         assignTrainer,
+        handleSort,
     };
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import { LocationSelector } from "../shared/LocationSelector";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +11,8 @@ export interface Branch {
   id: string;
   name: string;
   description?: string;
+  city?: string;
+  township?: string;
   users?: BranchUser[];
   createdAt: string;
 }
@@ -40,6 +43,8 @@ export function BranchModal({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [city, setCity] = useState("");
+  const [township, setTownship] = useState("");
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -51,9 +56,13 @@ export function BranchModal({
       if (branch) {
         setName(branch.name);
         setDescription(branch.description ?? "");
+        setCity(branch.city ?? "");
+        setTownship(branch.township ?? "");
       } else {
         setName("");
         setDescription("");
+        setCity("");
+        setTownship("");
       }
       setValidationError(null);
     }
@@ -92,12 +101,19 @@ export function BranchModal({
 
     setLoading(true);
     try {
-      const payload: { name: string; description?: string } = {
+      const payload: {
+        name: string;
+        description?: string;
+        city?: string;
+        township?: string;
+      } = {
         name: trimmedName,
       };
       if (description.trim()) {
         payload.description = description.trim();
       }
+      if (city) payload.city = city;
+      if (township) payload.township = township;
 
       if (isEditMode && branch) {
         await apiClient(`/branches/${branch.id}`, {
@@ -203,6 +219,14 @@ export function BranchModal({
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-[#435ee5]/20 transition-colors text-sm resize-none"
             />
           </div>
+
+          <LocationSelector
+            city={city}
+            township={township}
+            onCityChange={setCity}
+            onTownshipChange={setTownship}
+            className="mb-2"
+          />
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-2">

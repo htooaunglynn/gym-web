@@ -26,7 +26,7 @@ export default function MembersPage() {
     const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const [page, setPage] = useState(1);
-    const { members, meta, isLoading, deleteMember, assignTrainer, refresh } = useMembers(page);
+    const { members, meta, isLoading, deleteMember, assignTrainer, refresh, handleSort } = useMembers(page);
 
     useEffect(() => {
         setPage(1);
@@ -80,6 +80,7 @@ export default function MembersPage() {
             accessor: (row: Member) => (
                 <span className="text-gray-500">#{row.id.slice(0, 4)}</span>
             ),
+            sortKey: "id",
         },
         {
             header: "Name",
@@ -100,6 +101,7 @@ export default function MembersPage() {
                     </span>
                 </div>
             ),
+            sortKey: "firstName",
         },
         {
             header: "Trainer Status",
@@ -109,6 +111,7 @@ export default function MembersPage() {
                     {row.trainerId ? "Has Trainer" : "Independent"}
                 </span>
             ),
+            sortKey: "trainerId",
         },
         {
             header: "Phone",
@@ -127,11 +130,29 @@ export default function MembersPage() {
                     {row.phone}
                 </div>
             ),
+            sortKey: "phone",
+        },
+        {
+            header: "City",
+            className: "w-[120px]",
+            accessor: (row: Member) => (
+                <span className="text-gray-600 font-medium">{row.city ?? "—"}</span>
+            ),
+            sortKey: "city",
+        },
+        {
+            header: "Township",
+            className: "w-[140px]",
+            accessor: (row: Member) => (
+                <span className="text-gray-600 font-medium">{row.township ?? "—"}</span>
+            ),
+            sortKey: "township",
         },
         {
             header: "Email",
             accessor: "email",
             className: "text-[#E84C4C] min-w-[200px]",
+            sortKey: "email",
         },
         {
             header: "Status",
@@ -165,6 +186,8 @@ export default function MembersPage() {
                     columns={columns}
                     data={members}
                     isLoading={isLoading}
+                    sortable={true}
+                    onSort={handleSort}
                     tabs={["All Members", "With Trainers", "Independent"]}
                     activeTab={activeTab}
                     onTabChange={setActiveTab}

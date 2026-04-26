@@ -15,7 +15,7 @@ import { Product } from "@/types/product";
 export default function ProductsPage() {
     const { user, activeBranchId } = useAuth();
     const [page, setPage] = useState(1);
-    const { products, meta, isLoading, deleteProduct, refresh } = useProducts(page);
+    const { products, meta, isLoading, deleteProduct, refresh, handleSort } = useProducts(page);
 
     useEffect(() => {
         setPage(1);
@@ -54,6 +54,7 @@ export default function ProductsPage() {
                     </span>
                 </div>
             ),
+            sortKey: "name",
         },
         {
             header: "Price",
@@ -62,6 +63,7 @@ export default function ProductsPage() {
                     ${row.price.toLocaleString()}
                 </span>
             ),
+            sortKey: "price",
         },
         {
             header: "Stock",
@@ -73,6 +75,7 @@ export default function ProductsPage() {
                     </span>
                 </div>
             ),
+            sortKey: "quantity",
         },
         {
             header: "ID",
@@ -81,6 +84,7 @@ export default function ProductsPage() {
                     {row.id}
                 </span>
             ),
+            sortKey: "id",
         },
     ];
 
@@ -98,6 +102,8 @@ export default function ProductsPage() {
                 <DataTable
                     columns={columns}
                     data={products}
+                    sortable={true}
+                    onSort={handleSort}
                     actions={[
                         ...(canCreateUpdate
                             ? [

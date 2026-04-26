@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { useToast } from "@/contexts/ToastContext";
+import { LocationSelector } from "../shared/LocationSelector";
 
 export interface Member {
   id: string;
@@ -11,6 +12,8 @@ export interface Member {
   phone: string;
   firstName: string;
   lastName: string;
+  city?: string;
+  township?: string;
   trainerId: string | null;
   createdAt: string;
 }
@@ -39,6 +42,8 @@ export function AddMemberModal({
     phone: "",
     password: "",
     trainerId: "",
+    city: "",
+    township: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +58,8 @@ export function AddMemberModal({
         phone: member.phone,
         password: "",
         trainerId: member.trainerId ?? "",
+        city: member.city ?? "",
+        township: member.township ?? "",
       });
     } else {
       setFormData({
@@ -62,6 +69,8 @@ export function AddMemberModal({
         phone: "",
         password: "",
         trainerId: "",
+        city: "",
+        township: "",
       });
     }
     setError(null);
@@ -86,6 +95,8 @@ export function AddMemberModal({
           lastName: formData.lastName,
           email: formData.email,
           phone: formData.phone,
+          city: formData.city,
+          township: formData.township,
         };
 
         // Only send trainerId if it has a value
@@ -111,6 +122,8 @@ export function AddMemberModal({
           email: formData.email,
           phone: formData.phone,
           password: formData.password,
+          city: formData.city,
+          township: formData.township,
         };
 
         if (formData.trainerId.trim() !== "") {
@@ -213,6 +226,16 @@ export function AddMemberModal({
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm"
             />
           </div>
+
+          <LocationSelector
+            city={formData.city}
+            township={formData.township}
+            onCityChange={(city) => setFormData((prev) => ({ ...prev, city }))}
+            onTownshipChange={(township) =>
+              setFormData((prev) => ({ ...prev, township }))
+            }
+            className="mb-4"
+          />
 
           <div className="mb-4">
             <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">

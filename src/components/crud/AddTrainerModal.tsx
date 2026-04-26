@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
+import { LocationSelector } from "../shared/LocationSelector";
 
 interface Trainer {
   id: string;
@@ -10,6 +11,8 @@ interface Trainer {
   lastName: string;
   email: string;
   phone: string;
+  city?: string;
+  township?: string;
   createdAt: string;
 }
 
@@ -34,6 +37,8 @@ export function AddTrainerModal({
     lastName: "",
     email: "",
     phone: "",
+    city: "",
+    township: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -45,9 +50,18 @@ export function AddTrainerModal({
         lastName: trainer.lastName,
         email: trainer.email,
         phone: trainer.phone,
+        city: trainer.city ?? "",
+        township: trainer.township ?? "",
       });
     } else {
-      setFormData({ firstName: "", lastName: "", email: "", phone: "" });
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        city: "",
+        township: "",
+      });
     }
   }, [trainer, isOpen]);
 
@@ -75,7 +89,14 @@ export function AddTrainerModal({
       }
 
       if (!isEditMode) {
-        setFormData({ firstName: "", lastName: "", email: "", phone: "" });
+        setFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          phone: "",
+          city: "",
+          township: "",
+        });
       }
       onSuccess();
       onClose();
@@ -159,6 +180,15 @@ export function AddTrainerModal({
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-gray-900 focus:outline-none transition-colors text-sm"
             />
           </div>
+          <LocationSelector
+            city={formData.city}
+            township={formData.township}
+            onCityChange={(city) => setFormData((prev) => ({ ...prev, city }))}
+            onTownshipChange={(township) =>
+              setFormData((prev) => ({ ...prev, township }))
+            }
+            className="mb-8"
+          />
 
           <div className="flex items-center justify-end gap-3">
             <button

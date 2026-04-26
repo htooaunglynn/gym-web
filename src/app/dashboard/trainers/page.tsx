@@ -16,7 +16,7 @@ import Image from "next/image";
 export default function TrainersPage() {
     const { activeBranchId } = useAuth();
     const [page, setPage] = useState(1);
-    const { trainers, meta, isLoading, deleteTrainer, refresh } = useTrainers(page);
+    const { trainers, meta, isLoading, deleteTrainer, refresh, handleSort } = useTrainers(page);
 
     useEffect(() => {
         setPage(1);
@@ -52,6 +52,7 @@ export default function TrainersPage() {
                     #{row.id.slice(0, 8)}
                 </span>
             ),
+            sortKey: "id",
         },
         {
             header: "Name",
@@ -71,6 +72,7 @@ export default function TrainersPage() {
                     </span>
                 </div>
             ),
+            sortKey: "firstName",
         },
         {
             header: "Specialization",
@@ -79,6 +81,7 @@ export default function TrainersPage() {
                     {row.specialization}
                 </span>
             ),
+            sortKey: "specialization",
         },
         {
             header: "Status",
@@ -90,6 +93,16 @@ export default function TrainersPage() {
             ),
         },
         {
+            header: "Location",
+            accessor: (row: Trainer) => (
+                <div className="flex flex-col text-xs text-gray-600">
+                    <span className="font-bold">{row.city ?? "—"}</span>
+                    <span>{row.township ?? "—"}</span>
+                </div>
+            ),
+            sortKey: "city",
+        },
+        {
             header: "Contact",
             accessor: (row: Trainer) => (
                 <div className="flex flex-col text-xs text-gray-500">
@@ -97,6 +110,7 @@ export default function TrainersPage() {
                     <span>{row.phone}</span>
                 </div>
             ),
+            sortKey: "email",
         },
     ];
 
@@ -114,6 +128,8 @@ export default function TrainersPage() {
                 <DataTable
                     columns={columns}
                     data={trainers}
+                    sortable={true}
+                    onSort={handleSort}
                     actions={[
                         ...(canCreateUpdate
                             ? [

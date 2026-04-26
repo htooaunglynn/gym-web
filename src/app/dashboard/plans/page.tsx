@@ -35,6 +35,14 @@ export default function PlansPage() {
     const [meta, setMeta] = useState(DEFAULT_META);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedPlan, setSelectedPlan] = useState<MembershipPlan | undefined>(
         undefined,
@@ -55,7 +63,12 @@ export default function PlansPage() {
             const result = await apiClient<PaginationResponse<MembershipPlan>>(
                 "/membership-plans",
                 {
-                    params: { page, limit: 20 },
+                    params: { 
+                        page, 
+                        limit: 20,
+                        sortBy,
+                        sortOrder
+                    },
                 },
             );
             const normalized = normalizeListResponse(result);
@@ -66,7 +79,7 @@ export default function PlansPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [activeBranchId, page]);
+    }, [activeBranchId, page, sortBy, sortOrder]);
 
     useEffect(() => {
         setPage(1);
@@ -108,6 +121,7 @@ export default function PlansPage() {
                     </span>
                 </div>
             ),
+            sortKey: "name",
         },
         {
             header: "Amount",
@@ -117,6 +131,7 @@ export default function PlansPage() {
                     ${parseFloat(row.amount.toString()).toFixed(2)}
                 </span>
             ),
+            sortKey: "amount",
         },
         {
             header: "Billing Cycle",
@@ -126,6 +141,7 @@ export default function PlansPage() {
                     {row.billingCycle}
                 </span>
             ),
+            sortKey: "billingCycle",
         },
         {
             header: "Features",
@@ -169,6 +185,7 @@ export default function PlansPage() {
                     </span>
                 </div>
             ),
+            sortKey: "isActive",
         },
     ];
 
@@ -237,6 +254,8 @@ export default function PlansPage() {
                     columns={columns}
                     data={plans}
                     isLoading={isLoading}
+                    sortable={true}
+                    onSort={handleSort}
                     actions={actions}
                 />
 

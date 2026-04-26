@@ -37,6 +37,14 @@ export default function UsersPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("All Users");
 
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -55,7 +63,13 @@ export default function UsersPage() {
         setIsLoading(true);
         try {
             const result = await apiClient<PaginationResponse<User>>("/users", {
-                params: { page, limit: 20, includeDeleted: false },
+                params: { 
+                    page, 
+                    limit: 20, 
+                    includeDeleted: false,
+                    sortBy,
+                    sortOrder
+                },
             });
             const normalized = normalizeListResponse(result);
             setUsers(normalized.data);
@@ -70,7 +84,7 @@ export default function UsersPage() {
     useEffect(() => {
         fetchUsers();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, page]);
+    }, [activeTab, page, sortBy, sortOrder]);
 
     const handleOpenCreate = () => {
         setSelectedUser(undefined);
@@ -113,6 +127,7 @@ export default function UsersPage() {
             accessor: (row) => (
                 <span className="text-gray-500">#{row.id.slice(0, 4)}</span>
             ),
+            sortKey: "id",
         },
         {
             header: "User Name",
@@ -133,6 +148,7 @@ export default function UsersPage() {
                     </span>
                 </div>
             ),
+            sortKey: "firstName",
         },
         {
             header: "Role",
@@ -144,6 +160,7 @@ export default function UsersPage() {
                     {row.role}
                 </span>
             ),
+            sortKey: "role",
         },
         {
             header: "Phone",
@@ -153,11 +170,13 @@ export default function UsersPage() {
                     {row.phone}
                 </div>
             ),
+            sortKey: "phone",
         },
         {
             header: "Email",
             accessor: "email",
             className: "text-[#E84C4C] min-w-[200px]",
+            sortKey: "email",
         },
     ];
 
@@ -208,6 +227,8 @@ export default function UsersPage() {
                     columns={columns}
                     data={users}
                     isLoading={isLoading}
+                    sortable={true}
+                    onSort={handleSort}
                     tabs={["All Users", "Admins Only", "Staff Only"]}
                     activeTab={activeTab}
                     onTabChange={setActiveTab}

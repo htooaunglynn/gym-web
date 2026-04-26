@@ -17,12 +17,19 @@ export function useTrainers(page = 1, limit = 20) {
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [meta, setMeta] = useState<PaginationMeta>(DEFAULT_META);
     const [isLoading, setIsLoading] = useState(true);
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const { showToast } = useToast();
 
     const fetchTrainers = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await TrainerService.getAll({ page, limit });
+            const response = await TrainerService.getAll({ 
+                page, 
+                limit,
+                sortBy,
+                sortOrder
+            });
             setTrainers(response.data ?? []);
             setMeta(response.meta ?? DEFAULT_META);
         } catch {
@@ -30,7 +37,7 @@ export function useTrainers(page = 1, limit = 20) {
         } finally {
             setIsLoading(false);
         }
-    }, [page, limit, activeBranchId]);
+    }, [page, limit, activeBranchId, sortBy, sortOrder]);
 
     useEffect(() => {
         setTrainers([]);
@@ -53,11 +60,17 @@ export function useTrainers(page = 1, limit = 20) {
         }
     };
 
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     return {
         trainers,
         meta,
         isLoading,
         refresh: fetchTrainers,
         deleteTrainer,
+        handleSort,
     };
 }

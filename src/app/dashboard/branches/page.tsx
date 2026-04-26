@@ -16,7 +16,7 @@ import { Branch } from "@/types/branch";
 export default function BranchesPage() {
     const { user } = useAuth();
     const [page, setPage] = useState(1);
-    const { branches, meta, isLoading, deleteBranch, refresh } = useBranches(page);
+    const { branches, meta, isLoading, deleteBranch, refresh, handleSort } = useBranches(page);
 
     // Modals state
     const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
@@ -52,20 +52,37 @@ export default function BranchesPage() {
                     {row.id.slice(0, 8)}…
                 </span>
             ),
+            sortKey: "id",
         },
         {
             header: "Name",
             accessor: (row: Branch) => (
                 <span className="font-semibold text-gray-900">{row.name}</span>
             ),
+            sortKey: "name",
         },
         {
             header: "Description",
             accessor: (row: Branch) => (
                 <span className="text-gray-500 text-sm truncate max-w-[200px] block">
-                    {(row as any).description ?? "—"}
+                    {row.description ?? "—"}
                 </span>
             ),
+            sortKey: "description",
+        },
+        {
+            header: "City",
+            accessor: (row: Branch) => (
+                <span className="text-gray-600 text-sm">{row.city ?? "—"}</span>
+            ),
+            sortKey: "city",
+        },
+        {
+            header: "Township",
+            accessor: (row: Branch) => (
+                <span className="text-gray-600 text-sm">{row.township ?? "—"}</span>
+            ),
+            sortKey: "township",
         },
         {
             header: "Assigned Users",
@@ -78,6 +95,7 @@ export default function BranchesPage() {
         {
             header: "Created",
             accessor: (row: Branch) => new Date(row.createdAt).toLocaleDateString(),
+            sortKey: "createdAt",
         },
     ];
 
@@ -95,6 +113,8 @@ export default function BranchesPage() {
                 <DataTable
                     columns={columns}
                     data={branches}
+                    sortable={true}
+                    onSort={handleSort}
                     actions={[
                         ...(canUpdate
                             ? [

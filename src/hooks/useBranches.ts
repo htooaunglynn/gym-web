@@ -15,12 +15,19 @@ export function useBranches(page = 1, limit = 20) {
     const [branches, setBranches] = useState<Branch[]>([]);
     const [meta, setMeta] = useState<PaginationMeta>(DEFAULT_META);
     const [isLoading, setIsLoading] = useState(true);
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const { showToast } = useToast();
 
     const fetchBranches = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await BranchService.getAll({ page, limit }) as PaginationResponse<Branch> | { data: Branch[] } | Branch[];
+            const response = await BranchService.getAll({ 
+                page, 
+                limit,
+                sortBy,
+                sortOrder
+            }) as PaginationResponse<Branch> | { data: Branch[] } | Branch[];
             const normalized = normalizeListResponse(response);
             setBranches(normalized.data);
             setMeta(normalized.meta ?? DEFAULT_META);
@@ -29,7 +36,7 @@ export function useBranches(page = 1, limit = 20) {
         } finally {
             setIsLoading(false);
         }
-    }, [page, limit]);
+    }, [page, limit, sortBy, sortOrder]);
 
     useEffect(() => {
         fetchBranches();
@@ -46,11 +53,17 @@ export function useBranches(page = 1, limit = 20) {
         }
     };
 
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     return {
         branches,
         meta,
         isLoading,
         refresh: fetchBranches,
         deleteBranch,
+        handleSort,
     };
 }

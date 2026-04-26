@@ -45,6 +45,14 @@ export default function EquipmentPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("All Equipment");
 
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedRow, setSelectedRow] = useState<Equipment | undefined>(
@@ -68,7 +76,13 @@ export default function EquipmentPage() {
             const result = await apiClient<PaginationResponse<Equipment>>(
                 "/equipment",
                 {
-                    params: { page, limit: 20, includeDeleted: false },
+                    params: { 
+                        page, 
+                        limit: 20, 
+                        includeDeleted: false,
+                        sortBy,
+                        sortOrder
+                    },
                 },
             );
             const normalized = normalizeListResponse(result);
@@ -79,7 +93,7 @@ export default function EquipmentPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [activeBranchId, page, activeTab]);
+    }, [activeBranchId, page, activeTab, sortBy, sortOrder]);
 
     useEffect(() => {
         setPage(1);
@@ -129,6 +143,7 @@ export default function EquipmentPage() {
             accessor: (row) => (
                 <span className="text-gray-500">#{row.id.slice(0, 4)}</span>
             ),
+            sortKey: "id",
         },
         {
             header: "Name",
@@ -136,6 +151,7 @@ export default function EquipmentPage() {
             accessor: (row) => (
                 <span className="font-bold text-gray-900">{row.name}</span>
             ),
+            sortKey: "name",
         },
         {
             header: "Description",
@@ -143,6 +159,7 @@ export default function EquipmentPage() {
             accessor: (row) => (
                 <span className="text-gray-500 truncate">{row.description}</span>
             ),
+            sortKey: "description",
         },
         {
             header: "Quantity",
@@ -152,6 +169,7 @@ export default function EquipmentPage() {
                     {row.quantity}
                 </span>
             ),
+            sortKey: "quantity",
         },
         {
             header: "Condition",
@@ -159,6 +177,7 @@ export default function EquipmentPage() {
             accessor: (row) => (
                 <StatusBadge status={row.condition} variant="equipment" />
             ),
+            sortKey: "condition",
         },
         {
             header: "Created",
@@ -168,6 +187,7 @@ export default function EquipmentPage() {
                     {new Date(row.createdAt).toLocaleDateString()}
                 </span>
             ),
+            sortKey: "createdAt",
         },
     ];
 
@@ -229,6 +249,8 @@ export default function EquipmentPage() {
                     columns={columns}
                     data={rows}
                     isLoading={isLoading}
+                    sortable={true}
+                    onSort={handleSort}
                     tabs={["All Equipment", "Maintenance Needed", "Broken"]}
                     activeTab={activeTab}
                     onTabChange={setActiveTab}

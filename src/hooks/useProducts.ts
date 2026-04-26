@@ -17,12 +17,19 @@ export function useProducts(page = 1, limit = 20) {
     const [products, setProducts] = useState<Product[]>([]);
     const [meta, setMeta] = useState<PaginationMeta>(DEFAULT_META);
     const [isLoading, setIsLoading] = useState(true);
+    const [sortBy, setSortBy] = useState<string | undefined>();
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const { showToast } = useToast();
 
     const fetchProducts = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await ProductService.getAll({ page, limit });
+            const response = await ProductService.getAll({ 
+                page, 
+                limit,
+                sortBy,
+                sortOrder
+            });
             setProducts(response.data ?? []);
             setMeta(response.meta ?? DEFAULT_META);
         } catch {
@@ -30,7 +37,7 @@ export function useProducts(page = 1, limit = 20) {
         } finally {
             setIsLoading(false);
         }
-    }, [page, limit, activeBranchId]);
+    }, [page, limit, activeBranchId, sortBy, sortOrder]);
 
     useEffect(() => {
         setProducts([]);
@@ -53,11 +60,17 @@ export function useProducts(page = 1, limit = 20) {
         }
     };
 
+    const handleSort = (newSortBy: string, newSortOrder: "asc" | "desc") => {
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+    };
+
     return {
         products,
         meta,
         isLoading,
         refresh: fetchProducts,
         deleteProduct,
+        handleSort,
     };
 }

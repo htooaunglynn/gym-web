@@ -8,6 +8,7 @@ export type ColumnDef<T> = {
     header: string;
     accessor: keyof T | ((row: T) => React.ReactNode);
     className?: string; // Optional specific width limits
+    sortKey?: string; // Optional field name for sorting if accessor is a function
 };
 
 type ActionDef<T> = {
@@ -75,8 +76,7 @@ export function DataTable<T extends { id: string | number }>({
 
     function handleColumnClick(col: ColumnDef<T>) {
         if (!sortable) return;
-        const key =
-            typeof col.accessor === "function" ? col.header : String(col.accessor);
+        const key = col.sortKey || (typeof col.accessor === "function" ? col.header : String(col.accessor));
         let newOrder: "asc" | "desc" = "asc";
         if (sortBy === key) {
             newOrder = sortOrder === "asc" ? "desc" : "asc";
@@ -135,10 +135,7 @@ export function DataTable<T extends { id: string | number }>({
                         style={{ gridTemplateColumns }}
                     >
                         {columns.map((col, i) => {
-                            const key =
-                                typeof col.accessor === "function"
-                                    ? col.header
-                                    : String(col.accessor);
+                            const key = col.sortKey || (typeof col.accessor === "function" ? col.header : String(col.accessor));
                             const isActive = sortBy === key;
 
                             return sortable ? (

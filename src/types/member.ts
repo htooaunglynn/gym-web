@@ -4,6 +4,8 @@ export interface Member {
     lastName: string;
     email: string;
     phone: string;
+    city?: string;
+    township?: string;
     trainerId: string | null;
     createdAt: string;
     updatedAt: string;
@@ -14,6 +16,8 @@ export interface CreateMemberInput {
     lastName: string;
     email: string;
     phone: string;
+    city?: string;
+    township?: string;
 }
 
 export interface UpdateMemberInput extends Partial<CreateMemberInput> {
