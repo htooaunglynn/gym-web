@@ -35,6 +35,7 @@ export function TopHeader() {
         () => true,
         () => false,
     );
+    const shouldShowBranchSwitcher = !pathname.startsWith("/dashboard/branches");
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -145,7 +146,7 @@ export function TopHeader() {
             {/* Right Side Tools & Profile */}
             <div className="flex items-center gap-4">
                 {/* Branch Switcher — only rendered for ADMIN users (BranchSwitcher returns null otherwise) */}
-                <BranchSwitcher />
+                {shouldShowBranchSwitcher ? <BranchSwitcher /> : null}
 
                 {/* Actions Group */}
                 <div className="flex items-center gap-2 bg-white rounded-full p-2 px-3 shadow-sm border border-gray-100">

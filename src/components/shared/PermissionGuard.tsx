@@ -3,19 +3,33 @@
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type {
-  PermissionFeature,
-  PermissionAction,
+    PermissionAction,
+    PermissionFeature,
+    PermissionStage,
 } from "@/contexts/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/contexts/ToastContext";
 
-export interface PermissionGuardProps {
-  feature: PermissionFeature;
-  action: PermissionAction;
-  /** Custom fallback. Defaults to redirect to /dashboard with a toast. */
-  fallback?: React.ReactNode;
-  children: React.ReactNode;
-}
+type ActionPermissionGuardProps = {
+    feature: PermissionFeature;
+    action: PermissionAction;
+    stage?: never;
+    /** Custom fallback. Defaults to redirect to /dashboard with a toast. */
+    fallback?: React.ReactNode;
+    children: React.ReactNode;
+};
+
+type StagePermissionGuardProps = {
+    feature: PermissionFeature;
+    stage: PermissionStage;
+    action?: never;
+    fallback?: React.ReactNode;
+    children: React.ReactNode;
+};
+
+export type PermissionGuardProps =
+    | ActionPermissionGuardProps
+    | StagePermissionGuardProps;
 
 /**
  * Wraps page content with a permission check.
@@ -26,34 +40,35 @@ export interface PermissionGuardProps {
  * server-only redirect() function, since this is a "use client" component.
  */
 export function PermissionGuard({
-  feature,
-  action,
-  fallback,
-  children,
+    feature,
+    action,
+    stage,
+    fallback,
+    children,
 }: PermissionGuardProps) {
-  const hasPermission = usePermission(feature, action);
-  const { showToast } = useToast();
-  const router = useRouter();
-  const toastShownRef = useRef(false);
+    const hasPermission = usePermission(feature, action ?? stage);
+    const { showToast } = useToast();
+    const router = useRouter();
+    const toastShownRef = useRef(false);
 
-  // Show toast and redirect once when permission is denied and no custom fallback
-  useEffect(() => {
-    if (!hasPermission && !toastShownRef.current) {
-      toastShownRef.current = true;
-      showToast("You do not have permission to view this page", "error");
-      if (fallback === undefined) {
-        router.replace("/dashboard");
-      }
+    // Show toast and redirect once when permission is denied and no custom fallback
+    useEffect(() => {
+        if (!hasPermission && !toastShownRef.current) {
+            toastShownRef.current = true;
+            showToast("You do not have permission to view this page", "error");
+            if (fallback === undefined) {
+                router.replace("/dashboard");
+            }
+        }
+    }, [hasPermission, showToast, fallback, router]);
+
+    if (!hasPermission) {
+        if (fallback !== undefined) {
+            return <>{fallback}</>;
+        }
+        // Render nothing while the useEffect redirect fires
+        return null;
     }
-  }, [hasPermission, showToast, fallback, router]);
 
-  if (!hasPermission) {
-    if (fallback !== undefined) {
-      return <>{fallback}</>;
-    }
-    // Render nothing while the useEffect redirect fires
-    return null;
-  }
-
-  return <>{children}</>;
+    return <>{children}</>;
 }

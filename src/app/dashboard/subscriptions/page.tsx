@@ -28,18 +28,20 @@ import {
 
 const TABS = ["All", "Active", "Paused", "Cancelled", "Expired"] as const;
 
+const DEFAULT_META = {
+    totalItems: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+};
+
 // ─── Page Component ───────────────────────────────────────────────────────────
 
 export default function SubscriptionsPage() {
     const { user, activeBranchId } = useAuth();
     // ── State ──────────────────────────────────────────────────────────────────
     const [rows, setRows] = useState<MemberSubscription[]>([]);
-    const [meta, setMeta] = useState({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
+    const [meta, setMeta] = useState(DEFAULT_META);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<string>("All");
@@ -84,7 +86,13 @@ export default function SubscriptionsPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [page, activeTab]);
+    }, [activeBranchId, page, activeTab]);
+
+    useEffect(() => {
+        setPage(1);
+        setRows([]);
+        setMeta(DEFAULT_META);
+    }, [activeBranchId]);
 
     useEffect(() => {
         fetchData();
@@ -252,8 +260,8 @@ export default function SubscriptionsPage() {
                             key={tab}
                             onClick={() => handleTabChange(tab)}
                             className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${activeTab === tab
-                                    ? "bg-[#211922] text-white shadow-sm"
-                                    : "bg-[#f0efed] text-gray-600 hover:bg-gray-200"
+                                ? "bg-[#211922] text-white shadow-sm"
+                                : "bg-[#f0efed] text-gray-600 hover:bg-gray-200"
                                 }`}
                         >
                             {tab}

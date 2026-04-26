@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { AddEquipmentModal } from "@/components/crud/AddEquipmentModal";
 import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
@@ -30,15 +30,17 @@ interface Equipment {
     createdAt: string;
 }
 
+const DEFAULT_META = {
+    totalItems: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+};
+
 export default function EquipmentPage() {
     const { user, activeBranchId } = useAuth();
     const [rows, setRows] = useState<Equipment[]>([]);
-    const [meta, setMeta] = useState({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
+    const [meta, setMeta] = useState(DEFAULT_META);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("All Equipment");
@@ -60,7 +62,7 @@ export default function EquipmentPage() {
     const { showToast } = useToast();
     const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             const result = await apiClient<PaginationResponse<Equipment>>(
@@ -77,12 +79,17 @@ export default function EquipmentPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeBranchId, page, activeTab]);
+
+    useEffect(() => {
+        setPage(1);
+        setRows([]);
+        setMeta(DEFAULT_META);
+    }, [activeBranchId]);
 
     useEffect(() => {
         fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, page]);
+    }, [fetchData]);
 
     const handleOpenCreate = () => {
         setSelectedRow(undefined);
@@ -106,7 +113,7 @@ export default function EquipmentPage() {
             await apiClient(`/equipment/${confirmDelete.id}`, { method: "DELETE" });
             showToast(`${confirmDelete.name} has been removed`, "success");
             setConfirmDelete(undefined);
-            fetchData();
+            await fetchData();
         } catch {
             // apiClient already shows an error toast
             setConfirmDelete(undefined);

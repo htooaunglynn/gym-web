@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DataTable } from "@/components/crud/DataTable";
 import { AddTrainerModal } from "@/components/crud/AddTrainerModal";
 import { PaginationControls } from "@/components/shared/PaginationControls";
@@ -14,9 +14,13 @@ import { Trainer } from "@/types/trainer";
 import Image from "next/image";
 
 export default function TrainersPage() {
-    const { user } = useAuth();
+    const { activeBranchId } = useAuth();
     const [page, setPage] = useState(1);
     const { trainers, meta, isLoading, deleteTrainer, refresh } = useTrainers(page);
+
+    useEffect(() => {
+        setPage(1);
+    }, [activeBranchId]);
 
     // Modals state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -99,7 +103,7 @@ export default function TrainersPage() {
     return (
         <PermissionGuard feature="TRAINERS" action="VIEW">
             <div className="animate-in fade-in max-w-[1600px] mx-auto pb-20">
-                <TrainersHeader 
+                <TrainersHeader
                     onAddClick={() => {
                         setSelectedTrainer(undefined);
                         setIsModalOpen(true);

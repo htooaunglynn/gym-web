@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { DataTable, ColumnDef } from "@/components/crud/DataTable";
 import { PlanModal } from "@/components/dashboard/PlanModal";
 import { BranchScopeNotice } from "@/components/shared/BranchScopeNotice";
@@ -22,15 +22,17 @@ import {
 } from "@/lib/apiClient";
 import type { MembershipPlan } from "@/types/membership-plan";
 
+const DEFAULT_META = {
+    totalItems: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+};
+
 export default function PlansPage() {
     const { user, activeBranchId } = useAuth();
     const [plans, setPlans] = useState<MembershipPlan[]>([]);
-    const [meta, setMeta] = useState({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
+    const [meta, setMeta] = useState(DEFAULT_META);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,13 +49,13 @@ export default function PlansPage() {
     const { showToast } = useToast();
     const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
-    const fetchPlans = async (currentPage = page) => {
+    const fetchPlans = useCallback(async () => {
         setIsLoading(true);
         try {
             const result = await apiClient<PaginationResponse<MembershipPlan>>(
                 "/membership-plans",
                 {
-                    params: { page: currentPage, limit: 20 },
+                    params: { page, limit: 20 },
                 },
             );
             const normalized = normalizeListResponse(result);
@@ -64,12 +66,17 @@ export default function PlansPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeBranchId, page]);
 
     useEffect(() => {
-        fetchPlans(page);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page]);
+        setPage(1);
+        setPlans([]);
+        setMeta(DEFAULT_META);
+    }, [activeBranchId]);
+
+    useEffect(() => {
+        fetchPlans();
+    }, [fetchPlans]);
 
     const handleDeleteConfirm = async () => {
         if (!confirmDelete) return;
@@ -80,7 +87,7 @@ export default function PlansPage() {
             });
             showToast(`Plan "${confirmDelete.name}" deleted successfully`, "success");
             setConfirmDelete(undefined);
-            fetchPlans(page);
+            await fetchPlans();
         } catch {
             // apiClient already shows an error toast
             setConfirmDelete(undefined);
@@ -242,7 +249,7 @@ export default function PlansPage() {
                 <PlanModal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    onSuccess={() => fetchPlans(page)}
+                    onSuccess={fetchPlans}
                     plan={selectedPlan}
                 />
 

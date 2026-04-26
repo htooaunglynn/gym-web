@@ -28,18 +28,20 @@ interface InventoryMovement {
     createdAt: string;
 }
 
+const DEFAULT_META = {
+    totalItems: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+};
+
 export default function InventoryPage() {
     const { user, activeBranchId } = useAuth();
     const tabs = ["All Actions", "Incoming", "Outgoing", "Adjustment"] as const;
     const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
     const [movements, setMovements] = useState<InventoryMovement[]>([]);
-    const [meta, setMeta] = useState({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
+    const [meta, setMeta] = useState(DEFAULT_META);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All Actions");
@@ -71,7 +73,13 @@ export default function InventoryPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [page, activeTab]);
+    }, [activeBranchId, page, activeTab]);
+
+    useEffect(() => {
+        setPage(1);
+        setMovements([]);
+        setMeta(DEFAULT_META);
+    }, [activeBranchId]);
 
     useEffect(() => {
         fetchMovements();

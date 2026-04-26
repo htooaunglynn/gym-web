@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DataTable } from "@/components/crud/DataTable";
 import { ProductModal } from "@/components/dashboard/ProductModal";
 import { PaginationControls } from "@/components/shared/PaginationControls";
@@ -16,6 +16,10 @@ export default function ProductsPage() {
     const { user, activeBranchId } = useAuth();
     const [page, setPage] = useState(1);
     const { products, meta, isLoading, deleteProduct, refresh } = useProducts(page);
+
+    useEffect(() => {
+        setPage(1);
+    }, [activeBranchId]);
 
     // Modals state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,7 +87,7 @@ export default function ProductsPage() {
     return (
         <PermissionGuard feature="PRODUCTS" action="VIEW">
             <div className="animate-in fade-in max-w-[1600px] mx-auto pb-20">
-                <ProductsHeader 
+                <ProductsHeader
                     onAddClick={() => {
                         setSelectedProduct(undefined);
                         setIsModalOpen(true);

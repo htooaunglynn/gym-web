@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DataTable } from "@/components/crud/DataTable";
 import { AddMemberModal } from "@/components/crud/AddMemberModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -27,7 +27,11 @@ export default function MembersPage() {
 
     const [page, setPage] = useState(1);
     const { members, meta, isLoading, deleteMember, assignTrainer, refresh } = useMembers(page);
-    
+
+    useEffect(() => {
+        setPage(1);
+    }, [activeBranchId]);
+
     // Tab state (for UI only in this basic version, could be passed to hook if API supports filtering)
     const [activeTab, setActiveTab] = useState("All Members");
 
@@ -36,7 +40,7 @@ export default function MembersPage() {
     const [selectedMember, setSelectedMember] = useState<Member | undefined>(undefined);
     const [confirmDelete, setConfirmDelete] = useState<Member | undefined>(undefined);
     const [isDeleting, setIsDeleting] = useState(false);
-    
+
     const [isTrainerModalOpen, setIsTrainerModalOpen] = useState(false);
     const [trainerMemberId, setTrainerMemberId] = useState<string | null>(null);
     const [isAssigningTrainer, setIsAssigningTrainer] = useState(false);
@@ -144,7 +148,7 @@ export default function MembersPage() {
     return (
         <PermissionGuard feature="MEMBERS" action="VIEW">
             <div className="animate-in fade-in max-w-[1600px] mx-auto pb-20">
-                <MembersHeader 
+                <MembersHeader
                     onAddClick={() => {
                         setSelectedMember(undefined);
                         setIsAddEditModalOpen(true);

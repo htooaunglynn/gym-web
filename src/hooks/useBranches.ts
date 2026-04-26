@@ -1,26 +1,29 @@
 import { useState, useCallback, useEffect } from "react";
 import { BranchService } from "@/services/branch.service";
 import { Branch } from "@/types/branch";
-import { PaginationMeta } from "@/lib/apiClient";
+import { normalizeListResponse, PaginationMeta, PaginationResponse } from "@/lib/apiClient";
 import { useToast } from "@/contexts/ToastContext";
+
+const DEFAULT_META: PaginationMeta = {
+    totalItems: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+};
 
 export function useBranches(page = 1, limit = 20) {
     const [branches, setBranches] = useState<Branch[]>([]);
-    const [meta, setMeta] = useState<PaginationMeta>({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
+    const [meta, setMeta] = useState<PaginationMeta>(DEFAULT_META);
     const [isLoading, setIsLoading] = useState(true);
     const { showToast } = useToast();
 
     const fetchBranches = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await BranchService.getAll({ page, limit });
-            setBranches(response.data);
-            setMeta(response.meta);
+            const response = await BranchService.getAll({ page, limit }) as PaginationResponse<Branch> | { data: Branch[] } | Branch[];
+            const normalized = normalizeListResponse(response);
+            setBranches(normalized.data);
+            setMeta(normalized.meta ?? DEFAULT_META);
         } catch {
             // Error handling is managed by apiClient
         } finally {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     apiClient,
     normalizeListResponse,
@@ -39,28 +39,30 @@ interface Sale {
     items: SaleItem[];
 }
 
+const DEFAULT_META = {
+    totalItems: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+};
+
 export default function SalesPage() {
     const { user, activeBranchId } = useAuth();
     const [sales, setSales] = useState<Sale[]>([]);
-    const [meta, setMeta] = useState({
-        totalItems: 0,
-        page: 1,
-        limit: 20,
-        totalPages: 1,
-    });
+    const [meta, setMeta] = useState(DEFAULT_META);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedSale, setSelectedSale] = useState<Sale | undefined>(undefined);
     const isAllBranchesMode = isAllBranchesScope(user, activeBranchId);
 
-    const fetchSales = async (currentPage = page) => {
+    const fetchSales = useCallback(async () => {
         setIsLoading(true);
         try {
             const result = await apiClient<PaginationResponse<Sale>>(
                 "/product-sales",
                 {
-                    params: { page: currentPage, limit: 20 },
+                    params: { page, limit: 20 },
                 },
             );
             const normalized = normalizeListResponse(result);
@@ -71,12 +73,17 @@ export default function SalesPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeBranchId, page]);
 
     useEffect(() => {
-        fetchSales(page);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page]);
+        setPage(1);
+        setSales([]);
+        setMeta(DEFAULT_META);
+    }, [activeBranchId]);
+
+    useEffect(() => {
+        fetchSales();
+    }, [fetchSales]);
 
     const columns: ColumnDef<Sale>[] = [
         {
@@ -200,7 +207,7 @@ export default function SalesPage() {
                 <SaleModal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    onSuccess={() => fetchSales(page)}
+                    onSuccess={fetchSales}
                     sale={selectedSale}
                 />
             </div>

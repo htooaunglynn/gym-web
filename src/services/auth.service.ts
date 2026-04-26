@@ -25,9 +25,12 @@ export type PermissionAction =
     | "MANAGE"
     | "APPROVE";
 
+export type PermissionStage = 0 | 1 | 2 | 3 | 4;
+
 export interface RolePermission {
     feature: PermissionFeature;
     actions: PermissionAction[];
+    permissionStage?: PermissionStage;
 }
 
 export interface AuthUser {

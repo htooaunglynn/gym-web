@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiClient, normalizeListResponse, PaginationResponse } from "@/lib/apiClient";
 import { useToast } from "@/contexts/ToastContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface InventoryMovement {
     id: string;
@@ -27,27 +28,35 @@ export interface DashboardMetrics {
     recentMovements: InventoryMovement[];
 }
 
+const INITIAL_METRICS: DashboardMetrics = {
+    totalMembers: 0,
+    totalTrainers: 0,
+    totalEquipment: 0,
+    activeSubscriptionCount: 0,
+    hasLowStock: false,
+    recentMovements: [],
+};
+
+const INITIAL_LOADING_STATES = {
+    members: true,
+    trainers: true,
+    equipment: true,
+    activity: true,
+    subscriptions: true,
+    products: true,
+};
+
 export function useDashboardMetrics() {
     const { showToast } = useToast();
-    const [metrics, setMetrics] = useState<DashboardMetrics>({
-        totalMembers: 0,
-        totalTrainers: 0,
-        totalEquipment: 0,
-        activeSubscriptionCount: 0,
-        hasLowStock: false,
-        recentMovements: [],
-    });
+    const { activeBranchId } = useAuth();
+    const [metrics, setMetrics] = useState<DashboardMetrics>(INITIAL_METRICS);
 
-    const [loadingStates, setLoadingStates] = useState({
-        members: true,
-        trainers: true,
-        equipment: true,
-        activity: true,
-        subscriptions: true,
-        products: true,
-    });
+    const [loadingStates, setLoadingStates] = useState(INITIAL_LOADING_STATES);
 
-    const loadDashboardData = async () => {
+    const loadDashboardData = useCallback(async () => {
+        setMetrics(INITIAL_METRICS);
+        setLoadingStates(INITIAL_LOADING_STATES);
+
         const [
             membersResult,
             trainersResult,
@@ -77,8 +86,8 @@ export function useDashboardMetrics() {
             }),
         ]);
 
-        const newMetrics = { ...metrics };
-        const newLoadingStates = { ...loadingStates };
+        const newMetrics = { ...INITIAL_METRICS };
+        const newLoadingStates = { ...INITIAL_LOADING_STATES };
 
         // Members
         if (membersResult.status === "fulfilled") {
@@ -131,11 +140,11 @@ export function useDashboardMetrics() {
 
         setMetrics(newMetrics);
         setLoadingStates(newLoadingStates);
-    };
+    }, [showToast, activeBranchId]);
 
     useEffect(() => {
         loadDashboardData();
-    }, []);
+    }, [loadDashboardData]);
 
     return { metrics, loadingStates, refresh: loadDashboardData };
 }
