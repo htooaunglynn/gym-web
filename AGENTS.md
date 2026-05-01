@@ -1,188 +1,104 @@
-# AGENT.md — Gym Management System
+# AGENTS.md
 
-> **Stack:** NestJS · Prisma · PostgreSQL · Next.js · React Native · Multi-tenant (database-per-gym)
-> **Roles:** `SUPER_ADMIN` · `GYM_ADMIN` · `MEMBER`
-> **Domain pattern:** `{gym-slug}.app.com` (admin web) · `api.{gym-slug}.com` (member API) · `admin.app.com` (super admin)
+This file gives coding agents the shortest accurate path through `gym-web`.
 
----
+## Stack
 
-## 1. Project structure
+- Next.js 16 App Router
+- React 19
+- TypeScript 5 strict mode
+- Tailwind CSS 4
+- Vitest + Testing Library
+- Recharts for dashboard charts
 
-```
-/
-├── apps/
-│   ├── web/                    # Next.js — gym admin portal (web only)
-│   ├── mobile/                 # React Native — member app (iOS + Android)
-│   └── super-admin/            # Next.js — super admin portal (internal)
-├── backend/
-│   ├── src/
-│   │   ├── main.ts
-│   │   ├── app.module.ts
-│   │   ├── common/
-│   │   │   ├── guards/         # JwtAuthGuard, RolesGuard, TenantGuard
-│   │   │   ├── decorators/     # @Roles(), @CurrentTenant(), @CurrentUser()
-│   │   │   ├── interceptors/   # TenantInterceptor
-│   │   │   └── middleware/     # TenantResolverMiddleware
-│   │   ├── modules/
-│   │   │   ├── super-admin/    # Cross-tenant access — SUPER_ADMIN only
-│   │   │   ├── auth/           # JWT issuance, refresh, role guards
-│   │   │   ├── tenant/         # Provisioning, config, DB creation
-│   │   │   ├── members/        # Profiles, memberships
-│   │   │   ├── classes/        # Schedule, bookings
-│   │   │   ├── billing/        # Plans, payments, invoices
-│   │   │   ├── staff/          # Trainers, attendance
-│   │   │   ├── reports/        # Analytics, exports
-│   │   │   ├── notifications/  # Email, push, SMS
-│   │   │   └── maintenance/    # Migrations, health — SUPER_ADMIN only
-│   │   └── prisma/
-│   │       ├── prisma.service.ts        # Root connection (registry DB)
-│   │       └── tenant-prisma.service.ts # Dynamic per-tenant connection
-├── prisma/
-│   ├── registry/
-│   │   └── schema.prisma       # Central registry schema
-│   └── tenant/
-│       └── schema.prisma       # Per-tenant schema (applied to every gym DB)
-├── .env
-├── .env.example
-├── AGENT.md                    # ← this file
-├── RULES.md
-└── docker-compose.yml
-```
+Always treat `package.json` as the source of truth for versions and script names.
 
----
+## Repo Shape
 
-## 2. Tenant resolution flow
+Important top-level areas:
 
-```
-Request hits NestJS
-  │
-  ├─ Host: admin.app.com          → role=SUPER_ADMIN, tenantId=null (all DBs)
-  ├─ Host: {slug}.app.com         → role=GYM_ADMIN,   tenantId={slug}
-  └─ Host: api.{slug}.com         → role=MEMBER,       tenantId={slug}
-            │
-            ▼
-  TenantResolverMiddleware
-    reads subdomain → queries central registry DB → resolves DATABASE_URL
-            │
-            ▼
-  TenantPrismaService.forTenant(tenantId)
-    returns cached PrismaClient for that gym's PostgreSQL DB
-```
+- `src/app/layout.tsx`: root layout, metadata, auth and toast providers
+- `src/app/login/page.tsx`: public login page
+- `src/app/dashboard`: protected dashboard route tree
+- `src/app/dashboard/layout.tsx`: dashboard shell with sidebar, top header, and guard
+- `src/proxy.ts`: Next route matcher and limited server-side auth screening
+- `src/contexts/AuthContext.tsx`: session restoration, branch selection, permission hydration
+- `src/contexts/ToastContext.tsx`: toast state and API client error dispatch integration
+- `src/lib/apiClient.ts`: shared fetch wrapper, auth header attachment, pagination normalization
+- `src/lib/authorization.ts`: frontend authority checks by feature and action/stage
+- `src/lib/branchScope.ts`: all-branches read-only guardrails
+- `src/services`: feature-to-endpoint API wrappers
+- `src/components`: dashboard layout, forms, CRUD, and shared UI primitives
 
----
+## Architectural Reality
 
-## 3. Environment variables
+This repository is a single admin dashboard frontend, not a multi-app monorepo.
 
-```env
-# Central registry (shared)
-REGISTRY_DATABASE_URL="postgresql://user:pass@host:5432/gym_registry"
+Current state:
 
-# JWT
-JWT_SECRET="change-me-in-production"
-JWT_EXPIRES_IN="15m"
-JWT_REFRESH_EXPIRES_IN="7d"
+- auth is restored client-side from a JWT stored in `localStorage`
+- the frontend talks to `gym-api` over `NEXT_PUBLIC_API_BASE_URL`
+- the proxy can only do limited server-side checks unless a cookie is also present
+- branch scoping is handled with `activeBranchId` and `x-branch-id`
+- permission gating is implemented in the UI, but backend enforcement remains authoritative
 
-# Redis
-REDIS_URL="redis://localhost:6379"
+When changing code, preserve that reality instead of documenting or coding against a different auth or tenant model unless the task explicitly changes it.
 
-# Object storage (S3-compatible)
-STORAGE_BUCKET="gym-media"
-STORAGE_ENDPOINT="https://s3.amazonaws.com"
-STORAGE_ACCESS_KEY=""
-STORAGE_SECRET_KEY=""
+## Request And Auth Flow
 
-# Email / Push
-SMTP_HOST=""
-SMTP_PORT=587
-SMTP_USER=""
-SMTP_PASS=""
-FCM_SERVER_KEY=""
-```
+1. Public routes render through App Router.
+2. Login submits credentials to `gym-api` and receives a JWT.
+3. `AuthService` stores the token and decodes user claims.
+4. `AuthContext` restores user state and fetches `/permissions/me`.
+5. `apiClient` attaches `Authorization` and optional `x-branch-id` headers.
+6. Dashboard pages render according to user role, branch scope, and permissions.
 
----
+## Editing Rules
 
-## 4. Key services
+- Keep changes minimal and local.
+- Fix the root cause instead of patching symptoms into multiple components.
+- Use the shared API client and service layer before adding raw `fetch` calls.
+- Preserve existing dashboard patterns when extending pages or CRUD flows.
+- Do not invent backend endpoints or payload fields; follow existing service contracts or verify against `gym-api`.
+- Avoid broad visual rewrites unless the task is explicitly design-focused.
 
-### TenantPrismaService
+## Auth And Permission Rules
 
-Manages a `Map<tenantId, PrismaClient>`. On first request for a tenant, fetches the `DATABASE_URL` from the registry, creates a new `PrismaClient`, and caches it. Super admin bypasses this and holds a direct reference to the registry client.
+- Protected dashboard routes should remain compatible with `DashboardGuard` and `AuthContext`.
+- Permission-sensitive actions should use the established authority helpers instead of ad hoc inline checks.
+- Do not weaken read-only behavior for all-branch admin scope just to enable mutations.
+- Be explicit when a page is intentionally public.
 
-### TenantResolverMiddleware
+## Data And API Rules
 
-Runs before every route. Parses `req.hostname`, extracts the gym slug, attaches `req.tenantId` and `req.role`. Applied globally in `AppModule`.
+- Prefer `src/services/*` for feature API access.
+- Keep pagination handling consistent with `normalizeListResponse`.
+- Send branch scope through the existing `x-branch-id` mechanism when the feature already supports it.
+- Treat the backend as the trust boundary; frontend checks are for UX, not security.
 
-### RolesGuard
+## UI And Frontend Rules
 
-Reads `@Roles(Role.GYM_ADMIN)` decorator on controllers/handlers. Compares against JWT payload `role` claim. Throws `ForbiddenException` on mismatch.
+- Follow the current visual language already established in `src/components` and `src/app/globals.css`.
+- Reuse shared table, toast, modal, and form primitives before creating new variants.
+- Keep mobile behavior in mind for tables, pagination, and toast placement.
+- Use semantic HTML and preserve accessibility labels and keyboard interactions.
 
-### MaintenanceModule
+## Tests And Validation
 
-Exposes endpoints to: run Prisma migrations across all tenant DBs, check DB health, rotate connection strings. Restricted to `SUPER_ADMIN` only via `@Roles(Role.SUPER_ADMIN)`.
+- Tests use Vitest with the `jsdom` environment.
+- Unit and component tests live under `src` as `*.test.ts` or `*.test.tsx`.
+- After editing code, run the narrowest relevant validation first.
+- Prefer targeted test runs over full-suite runs unless the task is broad.
 
----
+Useful commands:
 
-## 5. Database schemas
+- `npm run dev`
+- `npm run lint`
+- `npm run test`
+- `npm run build`
 
-### Registry schema (`prisma/registry/schema.prisma`)
+## Documentation Discipline
 
-```prisma
-model Tenant {
-  id          String   @id @default(cuid())
-  slug        String   @unique       // "alpha", "beta"
-  name        String
-  databaseUrl String                 // per-gym PostgreSQL URL
-  plan        String   @default("starter")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-```
-
-### Tenant schema (`prisma/tenant/schema.prisma`)
-
-Applied to every gym DB via `prisma migrate deploy --schema prisma/tenant/schema.prisma`.
-
-Core models: `Member`, `Staff`, `MembershipPlan`, `Subscription`, `ClassSchedule`, `Booking`, `Payment`, `Notification`.
-
----
-
-## 6. API conventions
-
-- **Base URL:** `https://api.{gym-slug}.com/v1` (members) · `https://{gym-slug}.app.com/api/v1` (admin)
-- **Auth header:** `Authorization: Bearer <jwt>`
-- **Tenant header (optional override):** `x-tenant-id: alpha`
-- **Response envelope:**
-  ```json
-  { "data": {}, "meta": {}, "error": null }
-  ```
-- **Pagination:** `?page=1&limit=20` → `meta.total`, `meta.page`, `meta.lastPage`
-- **Errors:** RFC 7807 Problem Details format
-
----
-
-## 7. Agent capabilities by role
-
-| Capability                  | SUPER_ADMIN | GYM_ADMIN | MEMBER   |
-| --------------------------- | ----------- | --------- | -------- |
-| View all tenant DBs         | ✅          | ❌        | ❌       |
-| Provision / deprovision gym | ✅          | ❌        | ❌       |
-| Run migrations              | ✅          | ❌        | ❌       |
-| System health dashboard     | ✅          | ❌        | ❌       |
-| Manage members              | ✅ (any)    | ✅ (own)  | ❌       |
-| Manage staff                | ✅ (any)    | ✅ (own)  | ❌       |
-| Manage class schedule       | ✅ (any)    | ✅ (own)  | ❌       |
-| View & manage billing       | ✅ (any)    | ✅ (own)  | ✅ (own) |
-| Book classes                | ❌          | ❌        | ✅       |
-| View own profile            | ❌          | ✅        | ✅       |
-| Audit logs                  | ✅          | ❌        | ❌       |
-
----
-
-## 8. Coding conventions
-
-- **NestJS modules:** one module per domain feature. No cross-module direct imports — communicate via shared services or events.
-- **DTOs:** always validate with `class-validator`. Use `@IsUUID()`, `@IsEmail()`, `@IsEnum()` strictly.
-- **Prisma:** never call `prisma.$queryRaw` unless absolutely necessary. Use typed models.
-- **Errors:** throw NestJS `HttpException` subclasses — never `throw new Error()` in controllers.
-- **Logging:** use NestJS `Logger` with context name. Never `console.log` in production code.
-- **Tests:** unit tests next to the file (`*.spec.ts`). Integration tests in `test/`.
+- Keep `infrastructure.md` aligned with the actual single-app frontend architecture.
+- Keep this file concise and operational.
+- If auth, branch scoping, or API integration changes, update both this file and `CLAUDE.md`.
