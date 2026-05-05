@@ -1,258 +1,455 @@
-## Gym Web Infrastructure
-
-This document describes the current architecture of the `gym-web` repository and the operational shape it should preserve while integrating with `gym-api`.
-
-## Scope
-
-- Frontend: single Next.js admin dashboard application in this repository
-- Backend dependency: separate NestJS API in `gym-api`
-- Runtime model: browser-rendered admin dashboard with shared API client, auth context, permission gating, and branch-aware requests
-- Deployment target: standalone Next.js server behind a reverse proxy or container platform
-
-## Current System Summary
-
-- `src/app` contains the App Router surface for login and dashboard pages.
-- `src/app/layout.tsx` wires global providers for auth and toast handling.
-- `src/proxy.ts` handles route matching and limited server-side token checks.
-- `src/contexts/AuthContext.tsx` restores the current session, branch scope, and permissions.
-- `src/lib/apiClient.ts` centralizes API requests, bearer token attachment, branch header propagation, pagination normalization, and error handling.
-- `src/services/*` maps feature pages to `gym-api` endpoints.
-- `src/components` contains dashboard layout, forms, CRUD primitives, and shared UI.
+# Multi-Tenant Gym Platform - Infrastructure Overview
 
 ## System Architecture Diagram
 
-```mermaid
-flowchart LR
-	 AdminUser[Admin / Branch Admin / Staff]
-	 Browser[Browser Session]
-	 NextApp[Next.js 16 App Router\ngym-web]
-	 Providers[AuthProvider + ToastProvider\nDashboardSectionProvider]
-	 Proxy[Next proxy route matcher\nsrc/proxy.ts]
-	 ApiClient[Central API Client\nsrc/lib/apiClient.ts]
-	 GymAPI[gym-api\nNestJS 11 REST API]
-	 Postgres[(PostgreSQL)]
-	 Redis[(Redis cache)]
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              INTERNET / USERS                                │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │   Domain Resolution     │
+                    │  (Route53 / Cloudflare) │
+                    └────────────┬────────────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        │                        │                        │
+        │                        │                        │
+┌───────▼────────┐    ┌──────────▼─────────┐   ┌────────▼────────┐
+│ central.app    │    │ tenant1.app        │   │ tenant2.app     │
+│ (Admin Panel)  │    │ (Hospital A)       │   │ (Hospital B)    │
+└───────┬────────┘    └──────────┬─────────┘   └────────┬────────┘
+        │                        │                        │
+        └────────────────────────┼────────────────────────┘
+                                 │
+                                 │ HTTPS (SSL/TLS)
+                                 │
+┌────────────────────────────────▼────────────────────────────────────────────┐
+│                         SINGLE APPLICATION SERVER                            │
+│                         (AWS EC2 / DigitalOcean VPS)                        │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │                         NGINX WEB SERVER                            │    │
+│  │                    (Reverse Proxy / SSL Termination)                │    │
+│  └──────────────────────────────┬──────────────────────────────────────┘    │
+│                                 │                                            │
+│  ┌──────────────────────────────▼──────────────────────────────────────┐   │
+│  │                     js-FPM (NestJS Application)                    │   │
+│  │                                                                      │   │
+│  │  ┌────────────────────┐              ┌────────────────────┐        │   │
+│  │  │  Central Routes    │              │   Tenant Routes    │        │   │
+│  │  │  (routes/web.js)  │              │ (routes/tenant.js)│        │   │
+│  │  │                    │              │                    │        │   │
+│  │  │ - Tenant CRUD      │              │ - Point Collection │        │   │
+│  │  │ - Billing          │              │ - Customer Mgmt    │        │   │
+│  │  │ - Monitoring       │              │ - Reports/Analytics│        │   │
+│  │  │ - User Management  │              │ - API Endpoints    │        │   │
+│  │  └────────┬───────────┘              └─────────┬──────────┘        │   │
+│  │           │                                     │                   │   │
+│  │           └─────────────────┬───────────────────┘                   │   │
+│  │                             │                                       │   │
+│  │  ┌──────────────────────────▼──────────────────────────┐           │   │
+│  │  │         Tenancy Middleware Layer                    │           │   │
+│  │  │  (stancl/tenancy - Tenant Identification)          │           │   │
+│  │  │                                                     │           │   │
+│  │  │  • InitializeTenancyByDomain                       │           │   │
+│  │  │  • CheckTenantStatus (suspended/active)            │           │   │
+│  │  │  • PreventAccessFromCentralDomains                 │           │   │
+│  │  └──────────────────────────┬──────────────────────────┘           │   │
+│  │                             │                                       │   │
+│  │  ┌──────────────────────────▼──────────────────────────┐           │   │
+│  │  │            Database Connection Manager              │           │   │
+│  │  │    (Dynamic connection switching per tenant)        │           │   │
+│  │  └──────────────────────────┬──────────────────────────┘           │   │
+│  └─────────────────────────────┼───────────────────────────────────────┘   │
+│                                │                                            │
+│  ┌─────────────────────────────▼────────────────────────────────────┐     │
+│  │                   NestJS HORIZON                                 │     │
+│  │              (Queue Management Dashboard)                         │     │
+│  │                                                                   │     │
+│  │  • Monitors queue workers                                        │     │
+│  │  • Failed job tracking                                           │     │
+│  │  • Job metrics and throughput                                    │     │
+│  └───────────────────────────────────────────────────────────────────┘     │
+│                                                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │                 SUPERVISOR (Process Manager)                       │    │
+│  │                                                                    │    │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────┐ │    │
+│  │  │ Queue Workers    │  │ Queue Workers    │  │  Scheduler      │ │    │
+│  │  │ (Central Queue)  │  │ (Tenant Queue)   │  │  (Cron Jobs)    │ │    │
+│  │  │ • 2 processes    │  │ • 5 processes    │  │                 │ │    │
+│  │  │ • Tenant creation│  │ • Email jobs     │  │ • Daily backups │ │    │
+│  │  │ • Billing tasks  │  │ • Notifications  │  │ • Reports       │ │    │
+│  │  └──────────────────┘  └──────────────────┘  └─────────────────┘ │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                 │
+                    ┌────────────┼────────────┐
+                    │            │            │
+          ┌─────────▼────┐  ┌────▼─────┐  ┌──▼──────────────┐
+          │              │  │          │  │                 │
+          │   REDIS      │  │  PostgreSQL   │  │   AWS S3        │
+          │   SERVER     │  │  SERVER  │  │   (Storage)     │
+          │              │  │          │  │                 │
+          └──────────────┘  └──────────┘  └─────────────────┘
 
-	 AdminUser --> Browser
-	 Browser --> NextApp
-	 NextApp --> Proxy
-	 NextApp --> Providers
-	 Providers --> ApiClient
-	 ApiClient --> GymAPI
-	 GymAPI --> Postgres
-	 GymAPI --> Redis
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            REDIS SERVER                                      │
+│                         (Single Instance)                                    │
+│                                                                              │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐               │
+│  │   Database 0   │  │   Database 1   │  │   Database 2   │               │
+│  │   (Cache)      │  │   (Sessions)   │  │   (Queues)     │               │
+│  │                │  │                │  │                │               │
+│  │ • Tenant cache │  │ • User sessions│  │ • Central queue│               │
+│  │   with prefixes│  │   by tenant    │  │ • Tenant queue │               │
+│  │   tenant_{id}_ │  │                │  │ • Failed jobs  │               │
+│  └────────────────┘  └────────────────┘  └────────────────┘               │
+│                                                                              │
+│  Configuration:                                                              │
+│  • maxmemory: 2GB                                                           │
+│  • maxmemory-policy: allkeys-lru                                            │
+│  • Persistence: AOF + RDB snapshots                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          PostgreSQL DATABASE SERVER                               │
+│                      (Single Server, Multiple Databases)                     │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                      Central Database                                 │  │
+│  │                    (Gym_saas_central)                             │  │
+│  │                                                                       │  │
+│  │  Tables:                                                              │  │
+│  │  • tenants (id, data, timestamps, soft_deletes) -- stancl/tenancy JSON convention │  │
+│  │  • domains (tenant_id, domain)                                       │  │
+│  │  • central_users (superadmin accounts)                               │  │
+│  │  • subscription_plans                                                 │  │
+│  │  • billing_records                                                    │  │
+│  │  • audit_logs                                                         │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    Tenant Database: Hospital A                        │  │
+│  │                  (Gym_saas_tenant_uuid_1)                         │  │
+│  │                                                                       │  │
+│  │  Tables:                                                              │  │
+│  │  • customers (name, phone, email, points, tier_id)                   │  │
+│  │  • tiers (name, min_points, benefits)                                │  │
+│  │  • point_transactions (customer_id, amount, type, reason)            │  │
+│  │  • users (admin, manager, staff roles)                               │  │
+│  │  • roles, permissions (Spatie)                                       │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    Tenant Database: Hospital B                        │  │
+│  │                  (Gym_saas_tenant_uuid_2)                         │  │
+│  │                                                                       │  │
+│  │  Tables:                                                              │  │
+│  │  • customers                                                          │  │
+│  │  • tiers                                                              │  │
+│  │  • point_transactions                                                 │  │
+│  │  • users                                                              │  │
+│  │  • ... (same schema as Hospital A)                                   │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    Tenant Database: Hospital C                        │  │
+│  │                  (Gym_saas_tenant_uuid_3)                         │  │
+│  │                                                                       │  │
+│  │  ... repeats for each tenant (target: 10 tenants/year)               │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+│  Configuration:                                                              │
+│  • max_connections: 200                                                     │
+│  • Connection pooling via ProxySQL (future enhancement)                     │
+│  • Automated daily backups per database                                     │
+│  • Binary logging enabled for point-in-time recovery                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          AWS S3 STORAGE                                      │
+│                    (File & Asset Storage)                                    │
+│                                                                              │
+│  Bucket Structure:                                                           │
+│                                                                              │
+│  Gym-saas-production/                                                   │
+│  │                                                                           │
+│  ├── central/                                                               │
+│  │   ├── logos/              (tenant logos)                                │
+│  │   └── documents/          (contracts, invoices)                         │
+│  │                                                                           │
+│  ├── tenant_{uuid_1}/                                                       │
+│  │   ├── qr-codes/           (customer QR codes)                           │
+│  │   ├── receipts/           (transaction receipts)                        │
+│  │   ├── avatars/            (customer profile photos)                     │
+│  │   └── exports/            (CSV/Excel reports)                           │
+│  │                                                                           │
+│  ├── tenant_{uuid_2}/                                                       │
+│  │   ├── qr-codes/                                                          │
+│  │   ├── receipts/                                                          │
+│  │   └── ...                                                                │
+│  │                                                                           │
+│  └── backups/                                                               │
+│      ├── central/            (daily central DB dumps)                       │
+│      └── tenants/            (daily per-tenant DB dumps)                    │
+│                                                                              │
+│  Configuration:                                                              │
+│  • Encryption: AES-256 at rest                                              │
+│  • Access: IAM roles for NestJS app                                        │
+│  • CDN: CloudFront for QR code delivery (optional)                          │
+│  • Lifecycle: Auto-delete old backups after 90 days                         │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Request Flow Diagrams
 
-### 1. Login Flow
+### Central Admin Request Flow
 
-```mermaid
-sequenceDiagram
-	 participant U as User
-	 participant L as Login Page
-	 participant F as Login Form
-	 participant A as gym-api /auth/login
-	 participant C as AuthContext
-	 participant P as /permissions/me
-
-	 U->>L: Open /login
-	 U->>F: Submit credentials
-	 F->>A: POST credentials
-	 A-->>F: JWT access token
-	 F->>C: login(token)
-	 C->>C: Persist accessToken in localStorage
-	 C->>C: Decode JWT into AuthUser
-	 C->>P: Fetch permission matrix
-	 P-->>C: Feature/action permissions
-	 C-->>U: Navigate to dashboard
+```
+User Browser → central.Gym-saas.app
+     │
+     ▼
+  NGINX (SSL termination)
+     │
+     ▼
+  NestJS Router (routes/web.js)
+     │
+     ▼
+  Central Middleware
+  • Authentication
+  • CSRF protection
+     │
+     ▼
+  Central Controller
+  • TenantController::create()
+  • BillingController::index()
+     │
+     ▼
+  Central Database Connection
+  (Gym_saas_central)
+     │
+     ▼
+  Response → User Browser
 ```
 
-### 2. Authenticated Dashboard Request
+### Tenant API Request Flow (Point Collection)
 
-```mermaid
-sequenceDiagram
-	 participant U as User
-	 participant Page as Dashboard Page
-	 participant G as DashboardGuard
-	 participant C as AuthContext
-	 participant Client as apiClient
-	 participant API as gym-api
-
-	 U->>Page: Open dashboard route
-	 Page->>G: Render protected page
-	 G->>C: Read user + branch scope + permissions
-	 C-->>G: Authenticated state
-	 Page->>Client: Request feature data
-	 Client->>Client: Attach Authorization header
-	 Client->>Client: Attach x-branch-id if selected
-	 Client->>API: Fetch /api/v1 resource
-	 API-->>Client: Envelope or list response
-	 Client-->>Page: Normalized data + meta
-	 Page-->>U: Render table/cards/forms
+```
+Mobile App → tenant1.Gym-saas.app/api/points/collect
+     │
+     ▼
+  NGINX (SSL termination)
+     │
+     ▼
+  NestJS Router (routes/tenant.js)
+     │
+     ▼
+  Tenancy Middleware Stack:
+  • InitializeTenancyByDomain (identifies tenant1)
+  • CheckTenantStatus (verify active)
+  • Sanctum Authentication
+     │
+     ├─── Tenant Context Set ───┐
+     │                           │
+     ▼                           ▼
+  Tenant Controller        Redis Cache Check
+  PointsController         (tenant_uuid_1_customer_*)
+     │                           │
+     ▼                           ▼
+  RewardService            If miss → query DB
+     │
+     ▼
+  Database Transaction:
+  1. Calculate points
+  2. Update customer.points
+  3. Check tier upgrade
+  4. Create point_transaction
+  5. Dispatch notification job
+     │
+     ▼
+  Tenant Database Connection
+  (Gym_saas_tenant_uuid_1)
+     │
+     ▼
+  Redis Queue (database 2)
+  • Job: SendPointsCollectedNotification
+     │
+     ▼
+  Response → Mobile App
+     │
+     └─── Queue Worker processes job asynchronously
 ```
 
-### 3. Branch-Scoped Mutation Flow
+### Tenant Creation Flow
 
-```mermaid
-sequenceDiagram
-	 participant U as Admin User
-	 participant UI as CRUD Form
-	 participant C as AuthContext
-	 participant B as branchScope helpers
-	 participant Client as apiClient
-	 participant API as gym-api
-
-	 U->>UI: Submit create or update
-	 UI->>C: Read activeBranchId
-	 C-->>UI: Current branch scope
-	 UI->>B: Check all-branches readonly state
-	 B-->>UI: Allow or block mutation
-	 UI->>Client: POST or PATCH payload
-	 Client->>API: Send branch header + bearer token
-	 API-->>Client: Success or domain error
-	 Client-->>UI: Return data or toast-driven error
+```
+Central Admin → Create Tenant Form
+     │
+     ▼
+  TenantController::store()
+     │
+     ├─── 1. Create tenant record ────▼
+     │    Central DB: INSERT into tenants
+     │
+     ├─── 2. Create domain record ────▼
+     │    Central DB: INSERT into domains
+     │
+     ├─── 3. Generate DB credentials ─▼
+     │    tenant_key: UUID
+     │
+     ├─── 4. Create tenant database ──▼
+     │    PostgreSQL: CREATE DATABASE Gym_saas_tenant_{uuid}
+     │
+     ├─── 5. Run tenant migrations ───▼
+     │    js artisan tenants:migrate --tenants={uuid}
+     │
+     ├─── 6. Seed default data ───────▼
+     │    Tenant DB: INSERT default tiers, admin user
+     │
+     ├─── 7. Create S3 folders ───────▼
+     │    AWS S3: Create tenant_{uuid}/ structure
+     │
+     └─── 8. Dispatch welcome job ────▼
+          Queue: SendTenantWelcomeEmail
 ```
 
 ## Data Isolation Strategy
 
-### Current Strategy
+### Database Isolation
 
-- Tenant isolation is enforced by the backend, not by this frontend repository.
-- The frontend never chooses a tenant database directly.
-- The frontend scopes data operationally through:
-  - JWT identity decoded in `AuthService`
-  - permission matrix from `/permissions/me`
-  - optional `x-branch-id` header for admin branch selection
-  - UI-level read-only behavior when an admin is viewing all branches at once
+- **Method**: Separate PostgreSQL databases per tenant
+- **Naming**: `Gym_saas_tenant_{uuid}`
+- **Migration**: Independent schema per tenant
+- **Backup**: Individual backups per tenant database
+- **Security**: No cross-tenant queries possible
 
-### Effective Isolation Layers
+### Cache Isolation
 
-1. Role isolation
-	Admin, branch admin, and staff users see different actions and routes.
-2. Branch isolation
-	The active branch is stored client-side and sent explicitly on requests that support branch scoping.
-3. Permission isolation
-	UI actions are gated by `hasAuthority(...)` and per-feature permission checks.
-4. API enforcement
-	Final access control remains in `gym-api`; the UI is a convenience layer, not the trust boundary.
+- **Method**: Tenant-prefixed cache keys
+- **Pattern**: `tenant_{uuid}_{key}`
+- **Example**: `tenant_abc123_customer_456`
+- **Benefit**: Single Redis instance, logical separation
 
-### Constraints To Preserve
+### Storage Isolation
 
-- Do not add tenant or branch identifiers to arbitrary query strings when a validated header or existing API contract already exists.
-- Do not bypass permission checks in components just to surface actions early.
-- Do not treat frontend scoping as sufficient authorization.
-- Keep cross-branch mutation restrictions explicit in both UI and API usage.
+- **Method**: Tenant-based S3 folder structure
+- **Pattern**: `tenant_{uuid}/{resource_type}`
+- **Access**: IAM policies enforce path restrictions
+- **CDN**: CloudFront paths include tenant identifier
+
+### Queue Isolation
+
+- **Method**: Tenant context serialized in job
+- **Pattern**: `stancl/tenancy` auto-injects tenant_id
+- **Processing**: Worker re-initializes tenant context
+- **Benefit**: Shared queue, isolated execution
 
 ## Scaling Considerations
 
-### Frontend Runtime
+### Current Single-Server Limits
 
-- The app already uses `output: 'standalone'`, which is suitable for container deployment.
-- Horizontal scaling is straightforward because browser state holds auth and branch selection; the app server is effectively stateless.
-- Asset delivery should be pushed to a CDN in production, especially for Next static assets and remote images.
+- **Tenants**: 10-20 comfortably
+- **Transactions**: 10,000 - 20,000 daily total
+- **Database Connections**: 200 max (PostgreSQL)
+- **Redis Memory**: 2GB allocated
 
-### API Traffic
+### First Scaling Path (When needed)
 
-- Every dashboard view fans out into direct API calls from the browser; high-cardinality list screens will scale based on backend pagination discipline.
-- Rate-sensitive endpoints should remain paginated and filterable.
-- Shared query normalization in `apiClient` should remain cheap and deterministic.
+1. **Database Server Separation**
+   - Move PostgreSQL to dedicated server
+   - Implement ProxySQL for connection pooling
+2. **Redis Scaling**
+   - Separate Redis instances for cache/queue
+   - Or Redis Cluster for high availability
 
-### Operational Recommendations
+3. **Horizontal Scaling**
+   - Add second application server
+   - Implement load balancer (Nginx/HAProxy)
+   - Sticky sessions for tenant routing
 
-- Run multiple `gym-web` instances behind a load balancer.
-- Terminate TLS before the app container.
-- Cache static assets aggressively.
-- Prefer server or edge caching only for truly public, non-user-specific resources.
-- Keep dashboard data uncached at the CDN layer unless the response is explicitly safe to share.
+### Future Architecture (Beyond 50 tenants)
+
+- Database read replicas per tenant
+- Multi-region deployment
+- CDN for all static assets
+- Dedicated queue servers
+- Elasticsearch for tenant search
 
 ## Security Layers
 
-### Current Layers
+### Network Security
 
-1. Route entry control
-	`src/proxy.ts` protects dashboard route patterns and can reject obviously malformed or expired cookie tokens.
-2. Client auth restoration
-	`AuthContext` restores the current user from the stored access token.
-3. Authorization header attachment
-	`apiClient` attaches bearer tokens automatically.
-4. Permission gating
-	`hasAuthority(...)` prevents UI exposure of unauthorized actions.
-5. Branch mutation guardrails
-	`branchScope.ts` marks all-branch views as read-only for dangerous operations.
-6. Backend enforcement
-	`gym-api` remains the authoritative authn/authz layer.
+- SSL/TLS encryption (Let's Encrypt)
+- Firewall rules (UFW/Security Groups)
+- Database access restricted to app server IP
 
-### Known Security Reality
+### Application Security
 
-- The current implementation stores the access token in `localStorage`.
-- Because of that, full server-side session enforcement in `src/proxy.ts` is limited unless a secure cookie is also issued.
-- This is an architectural constraint of the current repo, not a documentation bug.
+- Tenant isolation via middleware
+- CSRF protection
+- XSS prevention
+- SQL injection protection (Eloquent ORM)
+- Rate limiting per tenant
 
-### Recommended Hardening Path
+### Data Security
 
-- Move access tokens to secure, httpOnly cookies if the auth model is changed intentionally.
-- Add CSP, stricter security headers, and cookie-based refresh semantics when backend support is ready.
-- Keep error messages user-safe and avoid surfacing raw backend internals.
-- Maintain strict separation between display permissions and actual write authorization.
+- S3 encryption at rest (AES-256)
+- Database encryption for sensitive fields
+- Secure credential storage (NestJS encryption)
+- Audit logging for point adjustments
+
+### Access Control
+
+- Role-based permissions (Spatie)
+- API token authentication (Sanctum)
+- Session management per tenant
+- Failed login throttling
 
 ## Monitoring & Health Checks
 
-### What To Monitor
+### Application Monitoring
 
-- App availability: successful response from `/login` and core dashboard routes
-- API reachability: ability to reach `NEXT_PUBLIC_API_BASE_URL`
-- Frontend error rate: fetch failures, auth redirects, unexpected render crashes
-- Latency: list pages and dashboard summary views
-- Build health: `npm run build`
-- Test health: `npm run test`
-- Lint health: `npm run lint`
+- NestJS Horizon dashboard (queue health)
+- Custom health check endpoint
+- Failed job alerts
+- Slow query logging
 
-### Suggested Health Model
+### Infrastructure Monitoring
 
-```mermaid
-flowchart TD
-	 Build[CI Build and Test] --> Deploy[Deploy gym-web]
-	 Deploy --> Smoke[Smoke check /login and dashboard shell]
-	 Smoke --> Metrics[Collect logs, latency, error counts]
-	 Metrics --> Alerts[Alert on failure thresholds]
-	 Alerts --> Triage[Investigate app, API, or env regression]
-```
+- Server resource utilization (CPU, RAM, Disk)
+- PostgreSQL connection pool status
+- Redis memory usage
+- S3 request metrics
 
-### Recommended Checks
+### Business Metrics
 
-- CI: run lint, tests, and build on every PR
-- Runtime smoke: verify `/login` renders and at least one authenticated route loads after login
-- Synthetic API probe: validate a known endpoint on `gym-api` responds as expected
-- Browser-side telemetry: capture unhandled errors and failed fetches
+- Tenant creation rate
+- Transaction volume per tenant
+- API response times
+- Queue processing delays
 
 ## Backup Strategy
 
-This frontend repository is mostly stateless at runtime, so backup strategy centers on source, artifacts, and dependent systems.
+### Database Backups
 
-### What Must Be Protected
+- **Frequency**: Daily at 2 AM
+- **Retention**: 30 days rolling
+- **Method**: PostgreSQLdump per tenant + central
+- **Storage**: Encrypted in S3 backups/ folder
 
-- Git history for `gym-web`
-- Deployment manifests or container definitions
-- Environment variable definitions outside the repo
-- Build artifacts only if your platform does not rebuild from source
-- Backend databases and Redis in `gym-api`, because business data does not live in this frontend
+### File Backups
 
-### Recommended Backup Plan
+- **Method**: S3 versioning enabled
+- **Retention**: 90 days lifecycle policy
 
-1. Source control
-	Use remote Git hosting as the primary recovery source.
-2. Environment recovery
-	Store production env vars in a managed secret store with version history.
-3. Artifact recovery
-	Keep reproducible builds so redeploying from Git is the default recovery path.
-4. Backend data recovery
-	Ensure PostgreSQL backups, restore drills, and point-in-time recovery are owned by the API infrastructure.
-5. Configuration recovery
-	Keep deployment config under version control where possible.
+### Recovery Testing
 
-## Operational Notes
-
-- `NEXT_PUBLIC_API_BASE_URL` is the main external dependency and should be treated as a required deployment input.
-- Remote images are currently allowed from Unsplash, UI Avatars, and DiceBear as configured in `next.config.ts`.
-- The frontend is only as healthy as the backend contracts it consumes; treat API drift as an availability risk.
+- Monthly restoration test
+- Documented recovery procedures
+- RTO target: 4 hours
+- RPO target: 24 hours

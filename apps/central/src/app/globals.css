@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  /* Central portal design tokens */
+  --color-surface: #0f0f13;
+  --color-surface-2: #1a1a22;
+  --color-surface-3: #22222e;
+  --color-border: #2e2e3e;
+  --color-accent: #6c63ff;
+  --color-accent-hover: #5a52e8;
+  --color-danger: #e84c4c;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-text-primary: #f1f1f4;
+  --color-text-secondary: #9898b0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* Smooth page transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeIn 0.2s ease-out;
+}

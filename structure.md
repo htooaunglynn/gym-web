@@ -1,15 +1,17 @@
 # Next.js UI/UX — Gym Management System
+
 # Infrastructure-Aligned Agent Prompt Set
+
 # Source: infrastructure.md + NestJS backend (NESTJS_INFRASTRUCTURE_PROMPTS.md)
 
 > **Purpose:** Build and fix the Next.js frontend to match the NestJS gym management
->              backend exactly. Two separate Next.js apps — Central Admin Portal
->              (central.gym-saas.app) and Gym Tenant Portal ({slug}.gym-saas.app).
+> backend exactly. Two separate Next.js apps — Central Admin Portal
+> (central.gym-saas.app) and Gym Tenant Portal ({slug}.gym-saas.app).
 >
 > **Run order:** Execute prompts 01 → 20 in strict sequence.
 > **Assumption:** Next.js 14+ (App Router) project exists with partial setup.
->                 Tailwind CSS, shadcn/ui configured. Some pages may already exist
->                 but lack tenant awareness, correct API wiring, or domain routing.
+> Tailwind CSS, shadcn/ui configured. Some pages may already exist
+> but lack tenant awareness, correct API wiring, or domain routing.
 
 ---
 
@@ -1789,12 +1791,14 @@ PART D — Token security sweep
 Check every item against infrastructure.md before declaring the frontend complete.
 
 ### Project structure
+
 - [ ] `apps/central/` and `apps/tenant/` are separate Next.js apps in monorepo
 - [ ] `packages/types/` exports all shared TypeScript types
 - [ ] `packages/ui/` exports all shared UI components
 - [ ] turbo.json and pnpm-workspace.yaml configured correctly
 
 ### Domain routing (mirrors infrastructure.md)
+
 - [ ] `central.gym-saas.app` routes to central app only
 - [ ] `{slug}.gym-saas.app` routes to tenant app, slug extracted from hostname
 - [ ] Middleware rejects unknown domains with 404
@@ -1802,6 +1806,7 @@ Check every item against infrastructure.md before declaring the frontend complet
 - [ ] Dev environment uses `NEXT_PUBLIC_DEV_TENANT_SLUG` for local testing
 
 ### Auth and token security
+
 - [ ] Access token lives ONLY in React Context memory
 - [ ] Refresh token lives ONLY in httpOnly cookie
 - [ ] Zero occurrences of `localStorage.*token` in codebase
@@ -1811,18 +1816,21 @@ Check every item against infrastructure.md before declaring the frontend complet
 - [ ] Logout clears memory state and calls logout endpoint
 
 ### Tenant isolation (UI)
+
 - [ ] `tenantId` / `slug` NEVER in URL query params or form fields
 - [ ] All React Query keys include tenant slug
 - [ ] API client reads slug from TenantContext, never from URL
 - [ ] Different tenant slugs produce separate cache entries
 
 ### Role-based UI
+
 - [ ] `<PermissionGate>` component used for ALL role-sensitive UI
 - [ ] Zero inline `role === 'admin'` checks in JSX
 - [ ] Staff role: correct nav items hidden
 - [ ] Permission constants from `packages/types/src/permissions.ts`
 
 ### Tenant portal pages
+
 - [ ] Dashboard: 4 stat cards, transaction list, tier chart, growth chart
 - [ ] Members: search, filter, sort, pagination, drawer with 4 tabs, QR code view
 - [ ] Points: member search with dropdown, collect/redeem/adjust, live recent list
@@ -1831,6 +1839,7 @@ Check every item against infrastructure.md before declaring the frontend complet
 - [ ] Reports: 4 tabs including CSV export via S3 signed URL
 
 ### Central portal pages
+
 - [ ] Overview: platform stats, tenant activity, system health
 - [ ] Tenants: table with lazy health dots, 8-step provision modal with polling
 - [ ] Billing: all records, by tenant, revenue chart
@@ -1841,6 +1850,7 @@ Check every item against infrastructure.md before declaring the frontend complet
 - [ ] Users: central staff accounts
 
 ### UX quality
+
 - [ ] Every data fetch has: loading skeleton, error state, empty state
 - [ ] Skeleton shapes match real content (CLS < 0.1)
 - [ ] Global toast system handles all API error codes
@@ -1848,13 +1858,1451 @@ Check every item against infrastructure.md before declaring the frontend complet
 - [ ] TenantErrorBoundary wraps all page-level components
 
 ### Accessibility
+
 - [ ] All axe-core tests pass (zero violations)
 - [ ] All form inputs have labels
 - [ ] All modals trap focus
 - [ ] Keyboard navigation works across all pages
 
 ### Tests
+
 - [ ] Unit tests (React Testing Library) for every component
 - [ ] Playwright E2E: login, tenant isolation, points collection, tier upgrade, provisioning, permissions
 - [ ] E2E token security assertion: no tokens in localStorage
+
+---
+
+## PROMPT 21 — Shared component library: packages/ui build-out
+
 ```
+Infrastructure.md reference: Used across all pages in both portals
+
+Task: Build out packages/ui/src/components/ with every reusable primitive.
+      These components must be portal-agnostic — no tenant or auth logic inside them.
+
+PART A — Button variants (packages/ui/src/components/Button.tsx)
+  Built on top of shadcn/ui Button. Add custom variants:
+    variant: 'primary' | 'secondary' | 'danger' | 'ghost' | 'link' | 'outline'
+    size:    'xs' | 'sm' | 'md' | 'lg'
+    loading: boolean  — shows spinner, disables click, keeps original width
+    leftIcon, rightIcon: React.ReactNode
+
+  Usage:
+    <Button variant="primary" loading={isSubmitting} leftIcon={<PlusIcon />}>
+      Add Member
+    </Button>
+
+  Constraint: loading=true MUST disable the button to prevent double-submit.
+
+PART B — Input primitives (packages/ui/src/components/inputs/)
+  All inputs must:
+    - Accept ref (forwardRef)
+    - Accept error?: string — renders red border + error text below
+    - Accept label?: string — renders visible label above
+    - Accept hint?: string — renders gray helper text below
+    - Be fully keyboard accessible
+
+  TextInput.tsx
+    Standard text input. Props: placeholder, disabled, maxLength, prefix, suffix.
+    suffix example: unit label like "pts" rendered inside the input right side.
+
+  EmailInput.tsx
+    TextInput with type="email" and email keyboard on mobile.
+
+  PasswordInput.tsx
+    TextInput with type toggle (password ↔ text).
+    Toggle button: eye icon / eye-off icon with aria-label.
+
+  PhoneInput.tsx
+    TextInput with type="tel" and tel keyboard on mobile.
+    Optional country code prefix selector (simple, not a full library).
+
+  NumberInput.tsx
+    type="number", props: min, max, step.
+    Prevents non-numeric input.
+    Shows + / - stepper buttons on sides.
+
+  SearchInput.tsx
+    TextInput with search icon prefix and × clear button (shown when value exists).
+    Props: onSearch (debounced callback), debounceMs (default 300).
+
+  Textarea.tsx
+    Auto-resizes with content (max 6 rows before scrolling).
+    Character counter shown bottom-right if maxLength is set.
+
+PART C — Select inputs (packages/ui/src/components/inputs/SelectInput.tsx)
+  Built on shadcn/ui Select.
+  Props:
+    options: { value: string; label: string; disabled?: boolean }[]
+    placeholder: string
+    searchable?: boolean  — shows filter input inside dropdown
+    clearable?: boolean   — shows × to reset to empty
+
+PART D — Badge component (packages/ui/src/components/Badge.tsx)
+  Props: variant: 'success' | 'error' | 'warning' | 'info' | 'neutral' | 'custom'
+         size: 'sm' | 'md'
+         dot?: boolean  — shows colored dot before text (for status indicators)
+
+  Pre-built semantic badges:
+    <StatusBadge status="ACTIVE" />    → green
+    <StatusBadge status="INACTIVE" />  → red
+    <StatusBadge status="PENDING" />   → amber
+    <TierBadge tier="Bronze" />        → #CD7F32 background
+    <TierBadge tier="Silver" />        → #C0C0C0 background
+    <TierBadge tier="Gold" />          → #FFD700 background
+    <RoleBadge role="admin" />         → red
+    <RoleBadge role="manager" />       → amber
+    <RoleBadge role="staff" />         → blue
+
+PART E — Table component (packages/ui/src/components/Table/)
+  Generic typed table:
+    interface Column<T> {
+      key: keyof T | string
+      header: string
+      render?: (row: T) => React.ReactNode
+      sortable?: boolean
+      width?: string
+    }
+
+    <DataTable<Member>
+      data={members}
+      columns={columns}
+      onRowClick={(row) => openDrawer(row)}
+      selectable={true}
+      onSelectionChange={(selected) => setSelected(selected)}
+      isLoading={isLoading}
+      loadingRows={5}
+      emptyState={<EmptyState ... />}
+    />
+
+  When isLoading=true: renders TableSkeleton with loadingRows rows.
+  Sortable columns: click header toggles asc/desc.
+  Selectable: checkbox column added automatically.
+
+PART F — Modal / Dialog (packages/ui/src/components/Modal.tsx)
+  Built on shadcn/ui Dialog.
+  Props: title, description?, size: 'sm'|'md'|'lg'|'xl'|'full', onClose.
+  Always traps focus.
+  Closes on Escape key.
+  Backdrop click closes (configurable with closeOnBackdrop prop, default true).
+  Animated: scale-in on open, scale-out on close (framer-motion or CSS transitions).
+
+PART G — Confirmation dialog (packages/ui/src/components/ConfirmDialog.tsx)
+  Props:
+    title: string
+    description: string
+    confirmLabel: string
+    confirmVariant: 'danger' | 'primary'
+    onConfirm: () => void
+    isLoading?: boolean
+  Usage:
+    <ConfirmDialog
+      title="Deactivate Alpha Gym?"
+      description="Members will no longer be able to access this gym."
+      confirmLabel="Deactivate"
+      confirmVariant="danger"
+      onConfirm={handleDeactivate}
+    />
+
+PART H — Pagination component (packages/ui/src/components/Pagination.tsx)
+  Props: page, lastPage, onPageChange, total?, pageSize?, onPageSizeChange?
+  Shows: "← Previous  1 2 3 … 10  Next →"
+  Page size selector: "Show: 10 / 20 / 50"
+  Shows: "Showing 1–20 of 134 results"
+
+PART I — Avatar component (packages/ui/src/components/Avatar.tsx)
+  Props: src?: string (S3 signed URL), name: string, size: 'xs'|'sm'|'md'|'lg'
+  If src is provided: renders next/image with src.
+  If no src: renders initials (first letter of each word in name, max 2 letters).
+  Colors: deterministic color from name hash (always same color for same name).
+
+Tests for every component:
+  - Button: loading=true disables click and shows spinner
+  - PasswordInput: toggle button switches input type
+  - SearchInput: onSearch called after debounceMs
+  - DataTable: renders skeleton when isLoading=true
+  - DataTable: empty state shown when data=[]
+  - Modal: closes on Escape key
+  - ConfirmDialog: onConfirm called only after user clicks confirm button
+  - Avatar: renders initials when no src provided
+  - TierBadge: renders correct color for each tier
+```
+
+---
+
+## PROMPT 22 — Form system: React Hook Form + Zod + submission patterns
+
+```
+Infrastructure.md reference: All data entry forms across both portals
+
+Task: Establish the shared form system. Every form in the project uses this system.
+      No form may bypass these patterns.
+
+PART A — Form wrapper component (packages/ui/src/components/Form.tsx)
+  Thin wrapper around React Hook Form's <FormProvider>.
+  Provides consistent layout and spacing.
+  Re-exports useFormContext for use in child components.
+
+  <Form form={form} onSubmit={handleSubmit}>
+    <FormField name="email" label="Email" required>
+      <EmailInput />
+    </FormField>
+    <FormActions>
+      <Button type="submit" loading={isSubmitting}>Save</Button>
+      <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+    </FormActions>
+  </Form>
+
+PART B — FormField component (packages/ui/src/components/FormField.tsx)
+  Connects a label + input + error + hint into one unit.
+  Uses useFormContext() to read the error state for the field name.
+  Props:
+    name: string
+    label: string
+    required?: boolean
+    hint?: string
+    children: React.ReactNode  (the input component)
+
+  Renders:
+    <div>
+      <label htmlFor={name}>{label} {required && <span aria-hidden>*</span>}</label>
+      {children with id={name} and aria-describedby pointing to error/hint}
+      {hint && <p id={name-hint}>{hint}</p>}
+      {error && <p id={name-error} role="alert">{error.message}</p>}
+    </div>
+
+PART C — useFormSubmit hook (shared hook, each app implements its own)
+  apps/tenant/lib/hooks/useFormSubmit.ts
+  apps/central/lib/hooks/useFormSubmit.ts
+
+  interface UseFormSubmitOptions<TData, TResponse> {
+    mutation: UseMutationResult<TResponse, ApiError, TData>
+    onSuccess?: (response: TResponse) => void
+    onError?: (error: ApiError) => void
+    form?: UseFormReturn<TData>    // if provided, maps API field errors to form errors
+  }
+
+  Returns:
+    onSubmit: (data: TData) => Promise<void>
+    isLoading: boolean
+
+  Behaviour:
+    - Calls mutation.mutateAsync(data)
+    - On success: calls onSuccess callback
+    - On ApiError with details: iterates error.details and calls form.setError() for each field
+      Example: { "email": ["Email already taken"] } → form.setError("email", { message: "Email already taken" })
+    - On ApiError without details: calls toast.apiError(error)
+    - On network error: toast.error("Connection error. Please try again.")
+    - Never exposes tenantId in the submitted data
+
+PART D — All Zod schemas (centralised)
+  Create schema files in each app:
+  apps/tenant/lib/schemas/
+
+    member.schema.ts:
+      export const createMemberSchema = z.object({
+        name:    z.string().min(2, 'Name must be at least 2 characters').max(100),
+        email:   z.string().email('Enter a valid email'),
+        phone:   z.string().regex(/^[0-9+\-\s()]{7,15}$/, 'Enter a valid phone number')
+                   .optional().or(z.literal('')),
+        tierId:  z.string().uuid().optional(),
+      })
+      export const updateMemberSchema = createMemberSchema.partial()
+      export type CreateMemberInput = z.infer<typeof createMemberSchema>
+
+    points.schema.ts:
+      export const collectPointsSchema = z.object({
+        memberId: z.string().uuid(),
+        amount:   z.number().int().min(1, 'Amount must be at least 1').max(10000),
+        reason:   z.string().min(1, 'Reason is required'),
+      })
+      export const adjustPointsSchema = collectPointsSchema.extend({
+        amount:   z.number().int().min(-100000).max(100000).refine(n => n !== 0, 'Amount cannot be zero'),
+        reason:   z.string().min(10, 'Provide a detailed reason for this adjustment (min 10 chars)'),
+        confirmed: z.literal(true, { errorMap: () => ({ message: 'You must confirm this adjustment' }) }),
+      })
+
+    tier.schema.ts:
+      export const tierSchema = z.object({
+        name:      z.string().min(2).max(50),
+        minPoints: z.number().int().min(0),
+        benefits:  z.array(z.string().min(1)).min(1, 'Add at least one benefit'),
+      })
+
+    staff.schema.ts:
+      export const createStaffSchema = z.object({
+        name:            z.string().min(2),
+        email:           z.string().email(),
+        role:            z.enum(['admin', 'manager', 'staff']),
+        password:        z.string().min(8).regex(/(?=.*[A-Z])(?=.*[0-9])/, 'Must include uppercase and number'),
+        confirmPassword: z.string(),
+      }).refine(d => d.password === d.confirmPassword, {
+        message: 'Passwords do not match',
+        path: ['confirmPassword'],
+      })
+
+  apps/central/lib/schemas/
+
+    tenant.schema.ts:
+      export const provisionTenantSchema = z.object({
+        gymName:    z.string().min(2).max(100),
+        domain:     z.string()
+                      .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers, and hyphens')
+                      .min(3).max(30),
+        plan:       z.enum(['starter', 'pro', 'elite']),
+        adminEmail: z.string().email(),
+      })
+
+    billing.schema.ts:
+      export const createPlanSchema = z.object({
+        name:         z.string().min(2).max(50),
+        priceMonthly: z.number().positive('Price must be greater than 0').multipleOf(0.01),
+        features:     z.array(z.string().min(1)).min(1),
+        isActive:     z.boolean(),
+      })
+
+PART E — Dynamic field list component (packages/ui/src/components/DynamicFieldList.tsx)
+  Used for tier benefits and plan features (the add/remove rows pattern).
+
+  Props:
+    name: string              (RHF field array name)
+    label: string             (e.g. "Benefits")
+    placeholder: string       (e.g. "e.g. 10% discount on merchandise")
+    addLabel: string          (e.g. "+ Add benefit")
+    minItems?: number         (default 1)
+    sortable?: boolean        (drag to reorder via @dnd-kit/sortable)
+
+  Renders:
+    - Row per item: text input + remove button
+    - Error per item shown inline
+    - "+ Add" button at bottom
+    - When sortable=true: drag handle icon on left
+
+Tests:
+  - FormField: error message has role="alert"
+  - FormField: error message linked via aria-describedby
+  - useFormSubmit: API field errors set on correct form fields
+  - useFormSubmit: network error shows toast (not field error)
+  - adjustPointsSchema: zero amount fails validation
+  - adjustPointsSchema: confirmed=false fails validation
+  - DynamicFieldList: remove button removes correct item
+  - DynamicFieldList: add button appends new empty row
+  - provisionTenantSchema: domain with uppercase fails
+  - provisionTenantSchema: domain with spaces fails
+```
+
+---
+
+## PROMPT 23 — Mobile responsiveness for tenant portal
+
+```
+Infrastructure.md reference:
+  "Mobile App → tenant1.gym-saas.app/api/points/collect"
+  Staff use this on tablets/phones at the gym counter
+
+Task: Make the entire tenant portal fully responsive.
+      Staff will use the Points page on a tablet at the gym counter daily.
+
+PART A — Responsive breakpoints (extend tailwind.config.ts in apps/tenant/)
+  Use default Tailwind breakpoints:
+    sm:  640px  — large phones landscape
+    md:  768px  — tablets portrait
+    lg:  1024px — tablets landscape / small laptops
+    xl:  1280px — desktops
+
+  Add custom:
+    'counter': '900px'  — used specifically for the Points counter layout
+
+PART B — Sidebar responsive behaviour (update from Prompt 04)
+  Desktop (lg+):  visible, full width (260px), collapsible to icons (56px)
+  Tablet (md-lg): hidden by default, slides in as overlay on hamburger click
+  Mobile (<md):   hidden, accessible via bottom navigation bar
+
+  Bottom navigation bar (mobile only, fixed bottom):
+    Shows 5 icons: Dashboard, Members, Points, Tiers, Reports
+    Active icon: colored, label shown
+    Only visible on mobile (<md breakpoint)
+
+PART C — Points page responsive layout (critical — Prompt 09)
+  Desktop:    side-by-side (60/40 split)
+  Tablet:     side-by-side (60/40) but tighter padding
+  Mobile:     stacked vertically
+    - Member search full width
+    - Selected member card full width
+    - Amount + reason full width
+    - "Collect Points" button: large, full width, 56px height (thumb-friendly)
+    - Recent transactions below (collapsible on mobile)
+
+  Touch optimisations for staff at counter:
+    - All tap targets minimum 44×44px (WCAG)
+    - Large number input for point amount (font-size 24px)
+    - Preset reason chips: large pill buttons, min 48px height
+    - Haptic-style visual feedback on button press (scale-95 active state)
+
+PART D — Members table responsive layout
+  Desktop:  full table with all 8 columns
+  Tablet:   hide Phone column
+  Mobile:   card list view instead of table
+    Each card: avatar + name + tier badge + points on left, action menu on right
+    Swipe right to reveal "Collect Points" action (optional, nice-to-have)
+
+  Implement the card/table switch:
+    const isMobile = useMediaQuery('(max-width: 640px)')
+    if (isMobile) return <MemberCardList members={members} />
+    return <DataTable ... />
+
+PART E — Member drawer responsive layout
+  Desktop/tablet: fixed right panel, 400px wide, no overlay
+  Mobile: full-screen bottom sheet (slides up from bottom)
+    Uses Vaul (drawer library) or custom CSS for bottom sheet behaviour
+
+PART F — Modal responsive behaviour
+  All modals:
+    Desktop:  centered, max-width based on size prop
+    Mobile:   full-screen (100vw × 100vh) or bottom sheet style
+  Update Modal component (from Prompt 21) to accept bottomSheet?: boolean
+  On mobile viewports: always render as bottom sheet
+
+PART G — Touch-friendly tap targets audit
+  Run through every interactive element and verify:
+  - All buttons: min-height 44px
+  - All links: display block with padding to increase tap area
+  - All form inputs: min-height 44px, font-size ≥ 16px (prevents iOS zoom)
+  - Checkboxes: 20×20px minimum with larger label click area
+
+Tests:
+  - Bottom nav renders on mobile viewport (< 640px)
+  - Bottom nav hidden on desktop (> 640px)
+  - Points page: stacked layout on mobile
+  - Points page: side-by-side layout on desktop
+  - Members: card list rendered on mobile viewport
+  - Members: table rendered on desktop viewport
+  - All buttons: height ≥ 44px (check rendered styles)
+  - All inputs: font-size ≥ 16px (prevents iOS auto-zoom)
+```
+
+---
+
+## PROMPT 24 — Member QR code workflow: generate, display, download
+
+```
+Infrastructure.md reference:
+  S3: tenant_{uuid}/qr-codes/ (customer QR codes)
+  "Tenant API Request Flow" — QR code used to collect points
+
+Task: Build the complete QR code workflow — generate, display, download, and scan ready.
+
+PART A — QR code display (MemberDrawer QR tab — update from Prompt 08)
+  Load: useMemberQRCode(memberId) → returns { signedUrl, expiresAt }
+
+  Layout:
+    Centered QR image (256×256px via next/image)
+    Below image:
+      Member name (bold)
+      "Points Collection QR Code" label
+      Expiry notice: "This link expires in {timeUntilExpiry}" (computed from expiresAt)
+
+    Buttons (row):
+      "Download QR Code" (primary)
+      "Regenerate" (secondary, admin only via PermissionGate permission="members:write")
+      "Print" (ghost)
+
+PART B — QR download implementation
+  async function downloadQRCode(signedUrl: string, memberName: string) {
+    // Fetch the image as blob (avoids CORS issues with direct S3 URLs)
+    const response = await fetch(signedUrl)
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `qr-${memberName.toLowerCase().replace(/\s+/g, '-')}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+PART C — QR Print view
+  When "Print" is clicked: opens a print-optimised view in new window/tab.
+  Print layout (uses CSS @media print):
+    Centered: gym logo, member name, tier badge, large QR code (4cm × 4cm)
+    Below: "Scan to collect points"
+    Page margins removed for close crop
+
+PART D — Bulk QR export (admin only)
+  Add to Members page bulk actions:
+    When ≥1 member selected: "Download QR Codes" option
+    Calls POST /api/tenant/members/bulk-qr
+    Backend generates a ZIP with all QR images
+    Returns S3 signed URL for the ZIP file
+    Auto-triggers ZIP download via signed URL
+
+    Progress UI:
+      After clicking: "Generating QR codes for {n} members..."
+      Progress spinner
+      On complete: "Download ZIP" button appears
+
+PART E — QR code preview in Members table
+  Add QR icon button to each row's action menu:
+    "View QR" → opens a mini modal (not full drawer)
+    Mini modal: just the QR image + download button
+    Faster than opening the full drawer for staff who only need the QR
+
+Tests:
+  - QR tab shows expiry countdown correctly
+  - Download: triggers file download with correct filename
+  - Print: opens new window/tab
+  - Bulk QR: sends correct memberIds in request body
+  - Bulk QR: download triggered with ZIP signed URL
+  - QR mini modal: opens from table row action menu
+  - Regenerate button hidden for manager/staff roles
+```
+
+---
+
+## PROMPT 25 — S3 media handling: uploads, signed URLs, image previews
+
+```
+Infrastructure.md reference:
+  S3: tenant_{uuid}/avatars/, /qr-codes/, /receipts/, /exports/
+  CDN: CloudFront for QR code delivery
+
+Task: Build all S3 media handling UI patterns used across the tenant portal.
+
+PART A — Avatar upload component (apps/tenant/components/media/AvatarUpload.tsx)
+  Used in: MemberDrawer Profile tab
+
+  Flow:
+    1. Click or drag-drop triggers file picker (accept: image/*)
+    2. Client-side validation:
+         max size: 5MB
+         types: image/jpeg, image/png, image/webp
+         If invalid: toast.error with specific message
+    3. Crop modal (optional but recommended):
+         Show image in circular crop preview
+         User can pan/zoom
+         "Crop & Upload" button
+         Use react-image-crop library
+    4. Upload:
+         GET /api/tenant/members/{id}/avatar-upload-url
+         Returns: { uploadUrl: string, key: string }  (presigned S3 PUT URL)
+         PUT directly to S3 with the file (bypasses backend for large files)
+         Show upload progress bar (track XHR progress event)
+    5. On upload success:
+         PATCH /api/tenant/members/{id} with { avatarKey: key }
+         Refresh member cache
+         Show new avatar immediately (local preview, no full reload)
+
+  Visual states:
+    Default:      circular placeholder with initials or existing photo
+    Hover:        overlay with camera icon + "Change photo"
+    Uploading:    circular progress ring overlay
+    Error:        red border + error message below
+
+PART B — Image component with S3 signed URL (packages/ui/src/components/S3Image.tsx)
+  Props:
+    signedUrl?: string
+    fallbackInitials?: string
+    alt: string
+    size: number
+    className?: string
+
+  Handles:
+    - Renders next/image when signedUrl is provided
+    - Falls back to Avatar initials when signedUrl is null/undefined
+    - Error state: if image fails to load → show initials as fallback
+    - Signed URLs expire: if 403 on load → re-fetch signed URL automatically
+      (call useMemberQRCode again or trigger a re-query)
+
+PART C — File download helper (apps/tenant/lib/utils/download.ts)
+  Centralise all file download logic:
+
+  async function downloadFromSignedUrl(signedUrl: string, filename: string): Promise<void>
+    // Same blob download pattern from Prompt 24 Part B
+    // Used for: QR codes, CSV exports, receipt downloads
+
+  async function downloadFromApi(
+    apiPath: string,
+    filename: string,
+    onProgress?: (percent: number) => void
+  ): Promise<void>
+    // For large file downloads that go through the API (not direct S3)
+    // Uses fetch with ReadableStream to track progress
+
+PART D — Receipt viewer (in PointTransaction history)
+  point_transactions may have a receiptUrl field (S3 signed URL).
+  When present: show "View Receipt" link in transaction row.
+  Opens a modal with:
+    - Image preview (for photo receipts)
+    - PDF embed via <iframe> (for PDF receipts)
+    - "Download" button
+
+PART E — Upload progress bar (packages/ui/src/components/UploadProgress.tsx)
+  Generic reusable component for all file uploads:
+  Props: percent: number, status: 'uploading' | 'done' | 'error', filename: string
+
+  Shows:
+    File name truncated (ellipsis)
+    Progress bar: animated fill, green when done, red on error
+    Status text: "Uploading... 60%" | "Upload complete" | "Upload failed"
+
+Tests:
+  - AvatarUpload: file > 5MB shows error toast
+  - AvatarUpload: non-image file shows error toast
+  - AvatarUpload: uploads directly to S3 presigned URL (not via backend)
+  - AvatarUpload: shows progress bar during upload
+  - S3Image: renders initials fallback when src is null
+  - S3Image: re-fetches URL on 403 error
+  - downloadFromSignedUrl: triggers browser download with correct filename
+  - UploadProgress: shows 100% and "Upload complete" on done status
+```
+
+---
+
+## PROMPT 26 — Notification and real-time feedback system
+
+```
+Infrastructure.md reference:
+  Queue Workers: email jobs, notifications (tenant queue)
+  Job: SendPointsCollectedNotification
+
+Task: Build the UI notification system — both in-app feedback and
+      real-time updates that reflect backend queue processing.
+
+PART A — Toast system (complete implementation — update from Prompt 19)
+  apps/tenant/lib/toast.ts and apps/central/lib/toast.ts
+
+  Full implementation:
+    import { toast as sonnerToast } from 'sonner'
+
+    export const toast = {
+      success: (message: string, options?: { description?: string }) =>
+        sonnerToast.success(message, { duration: 4000, ...options }),
+
+      error: (message: string, options?: { description?: string }) =>
+        sonnerToast.error(message, { duration: 8000, ...options }),
+
+      warning: (message: string) =>
+        sonnerToast.warning(message, { duration: 6000 }),
+
+      info: (message: string) =>
+        sonnerToast.info(message, { duration: 4000 }),
+
+      loading: (message: string) =>
+        sonnerToast.loading(message),  // returns toast ID
+
+      dismiss: (id: string | number) =>
+        sonnerToast.dismiss(id),
+
+      promise: <T>(
+        promise: Promise<T>,
+        messages: { loading: string; success: string; error: string }
+      ) => sonnerToast.promise(promise, messages),
+
+      apiError: (error: { code: string; message: string }) => {
+        const messages: Record<string, string> = {
+          VALIDATION_ERROR:   'Please check your input and try again.',
+          NOT_FOUND:          'The item you requested could not be found.',
+          FORBIDDEN:          "You don't have permission to do this.",
+          CONFLICT:           'This item already exists.',
+          TOO_MANY_REQUESTS:  'Too many requests. Please wait a moment.',
+          INTERNAL_ERROR:     'Something went wrong on our end. Please try again.',
+        }
+        sonnerToast.error(messages[error.code] ?? error.message, { duration: 8000 })
+      },
+    }
+
+  Use toast.promise() for async operations:
+    toast.promise(
+      collectPoints(data),
+      {
+        loading: 'Collecting points...',
+        success: `${member.name} earned ${data.amount} points!`,
+        error:   'Failed to collect points',
+      }
+    )
+
+PART B — Tier upgrade celebration modal (apps/tenant/components/points/TierUpgradeModal.tsx)
+  Triggered from Prompt 09 when collectPoints returns tierUpgrade !== null.
+
+  Visual design (full-screen overlay, centred card):
+    Trophy icon with gold glow effect (CSS box-shadow or framer-motion glow animation)
+    "🏆 Tier Upgrade!" heading
+    Big bold: "{memberName} has reached {newTierName}!"
+    Old tier badge → arrow → New tier badge (animated slide)
+    Benefits list of the new tier (fetched from useTiers() cache)
+    Confetti animation using canvas-confetti library:
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } })
+    "Awesome!" close button
+    Auto-closes after 8 seconds
+
+  Accessibility:
+    role="dialog" aria-modal="true"
+    Focus trapped inside
+    aria-live="assertive" for screen reader announcement
+
+PART C — Inline success feedback on point collection (Points page)
+  After successful collect:
+    Animated "+{amount} pts" badge flies up from the Collect button and fades out.
+    Implementation: CSS animation, position: absolute, keyframes slide-up + fade-out.
+    Duration: 1.5 seconds.
+    Simultaneously: member card points number animates from old value to new value
+      (use react-countup or a custom useCountAnimation hook for smooth number rollup).
+
+PART D — Polling for provisioning status (Central — update Prompt 14)
+  ProvisionTenantModal uses polling during the 8-step process.
+  Implement useProvisioningStatus hook:
+
+    function useProvisioningStatus(tenantUuid: string | null) {
+      return useQuery({
+        queryKey: ['provision-status', tenantUuid],
+        queryFn: () => apiClient(`/tenants/${tenantUuid}/provision-status`),
+        enabled: !!tenantUuid,
+        refetchInterval: (data) => {
+          // Stop polling when all steps are done or any step failed
+          const allDone = data?.steps.every(s => s.status === 'done')
+          const anyError = data?.steps.some(s => s.status === 'error')
+          return (allDone || anyError) ? false : 1000
+        },
+      })
+    }
+
+PART E — Notification bell (future-ready placeholder)
+  Add to topbar in both portals.
+  Current: shows static bell icon with no badge count.
+  Shows tooltip on hover: "Notifications coming soon"
+  Structure is in place for when WebSocket/SSE is added later.
+  Component: apps/tenant/components/layout/NotificationBell.tsx
+
+Tests:
+  - toast.apiError: FORBIDDEN → correct message
+  - toast.promise: shows loading → success states
+  - TierUpgradeModal: renders with new tier name and benefits
+  - TierUpgradeModal: auto-closes after 8 seconds
+  - TierUpgradeModal: confetti fires on mount
+  - Points animation: "+{amount}" element has correct text
+  - useProvisioningStatus: stops polling when all steps done
+  - useProvisioningStatus: stops polling when any step errored
+```
+
+---
+
+## PROMPT 27 — Dark mode support
+
+```
+Infrastructure.md reference: N/A (quality of life addition for staff who work evenings)
+
+Task: Add dark mode to both portals. Many gym staff work evenings —
+      dark mode reduces eye strain at the counter.
+
+PART A — Theme configuration (Tailwind)
+  In tailwind.config.ts for both apps:
+    darkMode: 'class'   // controlled by class on <html> element
+
+  Add CSS variables for both modes in globals.css:
+    :root {
+      --background: 0 0% 100%;
+      --foreground: 222.2 47.4% 11.2%;
+      --card: 0 0% 100%;
+      --border: 214.3 31.8% 91.4%;
+      --primary: 222.2 47.4% 11.2%;
+      --muted: 210 40% 96%;
+      --muted-foreground: 215.4 16.3% 46.9%;
+      /* ... all shadcn/ui variables */
+    }
+    .dark {
+      --background: 224 71% 4%;
+      --foreground: 213 31% 91%;
+      --card: 224 71% 4%;
+      --border: 216 34% 17%;
+      --primary: 210 40% 98%;
+      --muted: 223 47% 11%;
+      --muted-foreground: 215.4 16.3% 56.9%;
+      /* ... */
+    }
+
+PART B — ThemeProvider (packages/ui/src/components/ThemeProvider.tsx)
+  Uses next-themes library.
+  Wrap root layout of both apps:
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      {children}
+    </ThemeProvider>
+
+  Stores preference in localStorage (ONLY for theme — this is acceptable).
+  System preference respected by default (prefers-color-scheme media query).
+
+PART C — Theme toggle button (packages/ui/src/components/ThemeToggle.tsx)
+  Toggle between: Light | Dark | System
+  Shows current mode icon: ☀️ | 🌙 | 💻
+  Placed in:
+    Tenant portal topbar: right side before user menu
+    Central portal topbar: right side before user menu
+
+PART D — Dark mode audit
+  Review all custom colors added in Prompts 07–18 and ensure they use
+  CSS variables (not hardcoded hex) so they automatically adapt.
+
+  Specifically check:
+  - Tier badge colors (Bronze/Silver/Gold): add dark mode variants that are
+    slightly lighter for dark backgrounds
+  - Chart colors (Recharts): pass colors from CSS variable values
+    (read computed styles in a hook: useTailwindColor('primary'))
+  - The points animation "+{amount}" badge: use CSS variables
+  - The TierUpgradeModal: verify readability in dark mode
+
+PART E — Dark mode screenshot tests (Storybook / visual regression optional)
+  If Storybook is set up, add dark mode story variant for:
+    - Sidebar
+    - DataTable
+    - TierCard
+    - StatusBadge (all variants)
+    - TierUpgradeModal
+
+Tests:
+  - ThemeToggle: clicking cycles through light/dark/system
+  - ThemeProvider: applies 'dark' class to html element when dark selected
+  - ThemeProvider: applies system preference on 'system' mode
+  - Tier badge: Gold badge readable in dark mode (verify contrast ratio)
+  - Theme preference persisted in localStorage (acceptable use of localStorage)
+```
+
+---
+
+## PROMPT 28 — Member profile page (deep-link URL)
+
+```
+Infrastructure.md reference:
+  Tenant DB: members (name, phone, email, points, tier_id)
+  S3: tenant_{uuid}/avatars/
+
+Task: Build /members/[id] as a standalone page (not just a drawer).
+      Useful for deep linking and for admin who wants a full-screen member view.
+
+PART A — apps/tenant/app/(dashboard)/members/[id]/page.tsx (Server Component)
+  - Fetch member server-side: GET /api/tenant/members/{id}
+  - If 404: return notFound() (Next.js 404 page)
+  - If member belongs to different tenant: return notFound()
+  - Pass data as initialData to MemberProfileClient
+
+PART B — apps/tenant/app/(dashboard)/members/[id]/MemberProfileClient.tsx (Client)
+  Layout (two columns, desktop):
+    Left column (35%):
+      Large avatar (128px) with upload capability (same as drawer)
+      Member name (h1)
+      Email (with mailto: link)
+      Phone (with tel: link)
+      Joined date
+      Status badge (Active / Suspended)
+      Edit Profile button → inline edit mode
+
+    Right column (65%):
+      Tabs: Points & Tier | Transaction History | QR Code
+
+  Points & Tier tab:
+    Large current points display: "2,400 pts" in a hero number
+    Tier card: current tier name, colored background, benefits list
+    Next tier progress bar (TierProgress component from Prompt 08)
+    Action buttons:
+      <PermissionGate permission="points:earn">
+        <Button>Collect Points</Button>
+      </PermissionGate>
+      <PermissionGate permission="points:redeem">
+        <Button>Redeem Points</Button>
+      </PermissionGate>
+      <PermissionGate permission="points:adjust">
+        <Button variant="outline">Adjust Points</Button>
+      </PermissionGate>
+
+  Transaction History tab:
+    Full paginated transaction table (not just recent 10 like in drawer)
+    Columns: Date, Type badge, Amount (+/-), Reason, Balance after
+    Filter by type
+    Date range filter
+    Export button: "Export History CSV"
+
+  QR Code tab:
+    Same as MemberDrawer QR tab (Prompt 08/24)
+
+PART C — Breadcrumb
+  Members → {member.name}
+  Uses BreadcrumbContext from the layout.
+
+PART D — Back navigation
+  "← Back to Members" link at top.
+  Preserves the members list's current page/filter/search state.
+  Use next/navigation useRouter + searchParams to restore previous state.
+
+Tests:
+  - Page renders member name in h1
+  - 404 returned for non-existent member ID
+  - Points & Tier tab shows correct points and tier
+  - Transaction History: full paginated list loads
+  - Breadcrumb shows correct trail
+  - Back link navigates to /members
+```
+
+---
+
+## PROMPT 29 — Global search (tenant portal)
+
+```
+Infrastructure.md reference:
+  Tenant DB: members (name, phone, email)
+
+Task: Build a global search bar that searches across members, letting
+      staff quickly find a member by name, email, or phone from anywhere.
+
+PART A — GlobalSearch component (apps/tenant/components/layout/GlobalSearch.tsx)
+  Located in Topbar (replaces placeholder area).
+  Triggered by:
+    - Click on search icon in topbar
+    - Keyboard shortcut: Cmd+K / Ctrl+K (global listener)
+
+  Search input modal (full-screen overlay on mobile, centered floating panel on desktop):
+    Input: autofocus, placeholder "Search members by name, email, or phone..."
+    Results appear below after 300ms debounce.
+
+  Results section:
+    Heading: "Members ({count})"
+    Up to 8 results:
+      Row: avatar + member name + email + tier badge + points
+      Click: navigates to /members/{id}
+      Keyboard navigation: ↑↓ arrows, Enter to select, Escape to close
+
+    "No results" state:
+      "No members found for '{query}'"
+      Suggestion: "Add a new member" button (if permission allows)
+
+    "View all results" at bottom → navigates to /members?search={query}
+
+  API call: GET /api/tenant/members?search={query}&limit=8&page=1
+  Uses React Query with staleTime: 0 (always fresh for search)
+
+PART B — Keyboard shortcut registration
+  In root layout (dashboard level):
+    useEffect(() => {
+      function handler(e: KeyboardEvent) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault()
+          openGlobalSearch()
+        }
+      }
+      window.addEventListener('keydown', handler)
+      return () => window.removeEventListener('keydown', handler)
+    }, [])
+
+PART C — Recent searches
+  Store last 5 search terms in memory (not localStorage).
+  When search input is empty and focused: show "Recent searches" with the terms.
+  Clear button: "Clear recent" removes all from memory.
+
+Tests:
+  - Cmd+K opens search panel
+  - Search result shows after 300ms debounce
+  - Keyboard ↓↑ navigation highlights correct row
+  - Enter on highlighted row navigates to correct member page
+  - Escape closes the panel
+  - "View all results" passes search query to members page URL
+  - Empty state shown when no results
+```
+
+---
+
+## PROMPT 30 — Dev tooling, environment setup, and local development guide
+
+```
+Infrastructure.md reference:
+  Single Application Server — dev must mirror prod topology
+
+Task: Set up the developer experience so the full multi-tenant stack
+      runs correctly on a local machine.
+
+PART A — Environment files
+  apps/tenant/.env.local:
+    NEXT_PUBLIC_API_URL=http://localhost:3000
+    NEXT_PUBLIC_DEV_TENANT_SLUG=alpha          # gym slug for local dev
+    NEXT_PUBLIC_APP_ENV=development
+
+  apps/tenant/.env.example:
+    NEXT_PUBLIC_API_URL=                       # NestJS URL
+    NEXT_PUBLIC_DEV_TENANT_SLUG=               # Used in dev only (middleware reads this)
+    NEXT_PUBLIC_APP_ENV=development
+
+  apps/central/.env.local:
+    NEXT_PUBLIC_API_URL=http://localhost:3000
+    NEXT_PUBLIC_APP_ENV=development
+
+  apps/central/.env.example:
+    NEXT_PUBLIC_API_URL=
+    NEXT_PUBLIC_APP_ENV=development
+
+PART B — docker-compose.yml (root of monorepo)
+  Runs only external services — not the Next.js or NestJS apps themselves
+  (those run via pnpm dev):
+
+    version: '3.8'
+    services:
+      postgres:
+        image: postgres:15
+        environment:
+          POSTGRES_USER: gym_user
+          POSTGRES_PASSWORD: gym_pass
+          POSTGRES_DB: gym_saas_central
+        ports:
+          - '5432:5432'
+        volumes:
+          - postgres_data:/var/lib/postgresql/data
+
+      redis:
+        image: redis:7-alpine
+        command: redis-server --databases 3
+        ports:
+          - '6379:6379'
+
+    volumes:
+      postgres_data:
+
+PART C — Root package.json scripts
+  "dev:tenant":    "turbo run dev --filter=@gym/tenant"
+  "dev:central":   "turbo run dev --filter=@gym/central"
+  "dev:all":       "turbo run dev"
+  "build":         "turbo run build"
+  "test":          "turbo run test"
+  "test:e2e":      "playwright test"
+  "lint":          "turbo run lint"
+  "type-check":    "turbo run type-check"
+  "db:up":         "docker compose up -d"
+  "db:down":       "docker compose down"
+
+PART D — turbo.json pipeline
+  {
+    "pipeline": {
+      "build": { "dependsOn": ["^build"], "outputs": [".next/**"] },
+      "dev":   { "cache": false, "persistent": true },
+      "test":  { "dependsOn": ["^build"] },
+      "lint":  {},
+      "type-check": {}
+    }
+  }
+
+PART E — DEVELOPMENT.md guide at repo root
+  Write a clear setup guide:
+
+  ## Quick Start
+    1. Install: pnpm install
+    2. Start DB + Redis: pnpm db:up
+    3. Start NestJS: (instructions to start the backend)
+    4. Run migrations: (NestJS migration commands)
+    5. Start tenant portal: pnpm dev:tenant
+       → Open http://localhost:3001 (Tenant portal for 'alpha' gym)
+    6. Start central portal: pnpm dev:central
+       → Open http://localhost:3002 (Central admin)
+
+  ## Testing multi-tenant locally
+    The tenant portal reads NEXT_PUBLIC_DEV_TENANT_SLUG=alpha in dev.
+    To test a different tenant: change this value and restart.
+    In production, the slug comes from the hostname automatically.
+
+  ## Environment variables explained
+    Table: variable name | required | description | example
+
+  ## Common issues
+    - "Tenant not found" → ensure alpha tenant exists in local DB
+    - "CORS error" → check NEXT_PUBLIC_API_URL matches your NestJS port
+    - "401 on refresh" → clear browser cookies and log in again
+
+Tests:
+  - docker-compose.yml: postgres and redis services defined
+  - turbo.json: build pipeline defined with outputs
+  - .env.example: all required variables documented
+```
+
+---
+
+## PROMPT 31 — Deployment configuration: Next.js on the same VPS as NestJS
+
+```
+Infrastructure.md reference:
+  Single Application Server (AWS EC2 / DigitalOcean VPS)
+  Nginx (Reverse Proxy / SSL Termination)
+
+Task: Configure the Next.js apps for production deployment on the same
+      server as NestJS, behind the same Nginx instance.
+
+PART A — next.config.ts for apps/tenant/
+  import type { NextConfig } from 'next'
+
+  const nextConfig: NextConfig = {
+    output: 'standalone',  // minimal production bundle for VPS deployment
+
+    images: {
+      remotePatterns: [
+        {
+          protocol: 'https',
+          hostname: '*.s3.amazonaws.com',  // S3 direct URLs
+        },
+        {
+          protocol: 'https',
+          hostname: '*.cloudfront.net',    // CloudFront CDN URLs
+        },
+      ],
+    },
+
+    // API rewrites: /api/tenant/* → NestJS localhost:3000
+    async rewrites() {
+      return [
+        {
+          source: '/api/tenant/:path*',
+          destination: `${process.env.NESTJS_INTERNAL_URL}/api/tenant/:path*`,
+        },
+      ]
+    },
+
+    // Security headers
+    async headers() {
+      return [
+        {
+          source: '/(.*)',
+          headers: [
+            { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+            { key: 'X-Content-Type-Options', value: 'nosniff' },
+            { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          ],
+        },
+      ]
+    },
+  }
+
+  export default nextConfig
+
+PART B — next.config.ts for apps/central/
+  Same pattern but rewrites to /api/central/* instead.
+  Add:
+    // Bull Board proxy (served by NestJS, protected by IP)
+    { source: '/admin/queues/:path*', destination: 'http://localhost:3000/admin/queues/:path*' }
+
+PART C — Nginx configuration additions (update from NestJS Prompt 15)
+  Add tenant and central Next.js upstreams to the Nginx config:
+
+  upstream nextjs_tenant {
+      server 127.0.0.1:3001;   # Tenant Next.js
+  }
+
+  upstream nextjs_central {
+      server 127.0.0.1:3002;   # Central Next.js
+  }
+
+  server {
+      listen 443 ssl;
+      server_name *.gym-saas.app;
+
+      # Next.js static assets
+      location /_next/static/ {
+          proxy_pass http://nextjs_tenant;
+          proxy_cache_valid 200 1y;
+          add_header Cache-Control "public, immutable";
+      }
+
+      # API calls go directly to NestJS (skip Next.js)
+      location /api/ {
+          proxy_pass http://127.0.0.1:3000;
+          proxy_set_header Host $host;
+      }
+
+      # Everything else → Next.js
+      location / {
+          proxy_pass http://nextjs_tenant;
+          proxy_set_header Host $host;
+      }
+  }
+
+  server {
+      listen 443 ssl;
+      server_name central.gym-saas.app;
+
+      location /api/ {
+          proxy_pass http://127.0.0.1:3000;
+      }
+      location / {
+          proxy_pass http://nextjs_central;
+          proxy_set_header Host $host;
+      }
+  }
+
+PART D — pm2 ecosystem additions (update from NestJS Prompt 08)
+  Add Next.js processes to ecosystem.config.js:
+
+    {
+      name: 'tenant-nextjs',
+      script: 'node_modules/.bin/next',
+      args: 'start --port 3001',
+      cwd: './apps/tenant',
+      env_production: {
+        NODE_ENV: 'production',
+        NESTJS_INTERNAL_URL: 'http://localhost:3000',
+      }
+    },
+    {
+      name: 'central-nextjs',
+      script: 'node_modules/.bin/next',
+      args: 'start --port 3002',
+      cwd: './apps/central',
+      env_production: {
+        NODE_ENV: 'production',
+        NESTJS_INTERNAL_URL: 'http://localhost:3000',
+      }
+    },
+
+PART E — DEPLOYMENT.md at repo root
+  Covers:
+    1. Build step: pnpm build (runs turbo build for all apps)
+    2. Copy .env files to server
+    3. Run: pm2 start ecosystem.config.js --env production
+    4. Nginx reload: sudo nginx -s reload
+    5. Verify health: curl https://central.gym-saas.app/api/central/health
+
+  Zero-downtime deployment:
+    pm2 reload ecosystem.config.js --env production
+    (pm2 gracefully restarts each process, keeping old one alive until new is ready)
+
+Tests:
+  - next.config.ts: API rewrite proxies to NESTJS_INTERNAL_URL
+  - next.config.ts: security headers present on all routes
+  - output: 'standalone' is set (verifiable in next.config.ts)
+  - S3 image domain whitelisted in remotePatterns
+```
+
+---
+
+## PROMPT 32 — Final integration: wire everything together and fix gaps
+
+```
+Infrastructure.md reference: All sections
+
+Task: Final pass — find and fix all gaps between existing code and the
+      full infrastructure specification. This prompt identifies common
+      issues in existing Next.js projects that need fixing.
+
+PART A — Fix common existing code issues
+
+1. Replace any existing direct fetch() calls with the typed apiClient:
+   Search for: fetch('/api/
+   Replace with: apiClient<T>('/...')
+   This ensures: auth headers attached, envelope unwrapped, 401 handled.
+
+2. Replace any role checks in JSX:
+   Search for: {user?.role === or {user.role ===
+   Replace with: <PermissionGate permission="..."> or usePermission()
+
+3. Fix any cookies() usage in client components:
+   cookies() is a server-only API. Move any client-side cookie reads to
+   server components or server actions.
+
+4. Fix any missing Suspense boundaries:
+   Every async server component MUST be wrapped in <Suspense fallback={<PageSkeleton />}>
+   Search for: async function Page and ensure each has a loading.tsx sibling.
+
+5. Fix any next/image violations:
+   Search for: <img src= and replace with <Image from 'next/image'
+   Add width and height to every Image.
+   Add loading="lazy" to below-fold images.
+
+PART B — Add missing loading.tsx files
+  Create loading.tsx for every (dashboard) route:
+    apps/tenant/app/(dashboard)/dashboard/loading.tsx
+    apps/tenant/app/(dashboard)/members/loading.tsx
+    apps/tenant/app/(dashboard)/points/loading.tsx
+    apps/tenant/app/(dashboard)/tiers/loading.tsx
+    apps/tenant/app/(dashboard)/staff/loading.tsx
+    apps/tenant/app/(dashboard)/reports/loading.tsx
+
+    apps/central/app/(dashboard)/overview/loading.tsx
+    apps/central/app/(dashboard)/tenants/loading.tsx
+    (... all central routes)
+
+  Each loading.tsx:
+    export default function Loading() {
+      return <PageSkeleton variant="dashboard" />
+      // or the appropriate variant for that page
+    }
+
+PART C — Add missing error.tsx files
+  Create error.tsx for every (dashboard) route:
+    Same structure as loading.tsx but renders TenantErrorBoundary fallback.
+
+    'use client'
+    import { TenantErrorBoundary } from '@gym/ui'
+    export default function Error({ error, reset }: { error: Error; reset: () => void }) {
+      return <TenantErrorBoundary error={error} reset={reset} />
+    }
+
+PART D — Fix API base URL construction
+  Verify that apps/tenant/lib/api/client.ts constructs the correct base URL:
+
+  In development:
+    Base URL = process.env.NEXT_PUBLIC_API_URL + '/api/tenant'
+    (e.g. http://localhost:3000/api/tenant)
+
+  In production:
+    Base URL = '' + '/api/tenant'
+    (relative URL — Next.js rewrite handles proxying to NestJS)
+    This means: apiClient('/members') → /api/tenant/members → NestJS
+
+  The client must NOT hardcode the full domain — that breaks the
+  rewrite proxy pattern in production.
+
+  Fix if necessary:
+    const BASE_URL = process.env.NODE_ENV === 'production'
+      ? '/api/tenant'
+      : `${process.env.NEXT_PUBLIC_API_URL}/api/tenant`
+
+PART E — Verify Zod schemas match NestJS DTOs exactly
+  Go through each schema file (Prompt 22) and compare against the NestJS DTOs:
+
+  member.schema.ts vs CreateMemberDto (NestJS):
+    ✓ name: min(2), max(100)
+    ✓ email: email()
+    ✓ phone: optional, regex matches
+    ✓ tierId: optional UUID
+
+  points schemas vs CollectPointsDto:
+    ✓ amount: int, min(1)
+    ✓ reason: min(1)
+    (memberId is NOT in the form — it's injected server-side from URL param)
+
+  provisionTenantSchema vs CreateTenantDto:
+    ✓ domain: regex matches NestJS regex ^[a-z0-9-]+\.gym-saas\.app$
+    ✓ plan: same enum values as NestJS Plan enum
+
+  Fix any mismatches. Frontend validation must be stricter or equal to backend.
+
+PART F — Type safety sweep
+  Run TypeScript compiler: pnpm type-check
+  Fix ALL errors. Common issues to look for:
+    - ApiResponse<T> generic used without type argument
+    - Member | null not handled before accessing .name
+    - React Query data is T | undefined before data loads (use optional chaining)
+    - Event handlers typed as (e: any) instead of correct event type
+    - Children typed as any instead of React.ReactNode
+
+PART G — Final code quality
+  Run ESLint: pnpm lint
+  Common rules to enforce:
+    - no-unused-vars: 'error'
+    - react-hooks/exhaustive-deps: 'error'
+    - @next/next/no-img-element: 'error'
+    - jsx-a11y/alt-text: 'error'
+    - jsx-a11y/click-events-have-key-events: 'warn'
+
+  Fix ALL errors before merging.
+
+Tests:
+  - TypeScript compiler passes with zero errors
+  - ESLint passes with zero errors
+  - All loading.tsx files render the correct skeleton variant
+  - All error.tsx files render TenantErrorBoundary
+  - apiClient: uses relative URL in production (no hardcoded domain)
+  - apiClient: uses NEXT_PUBLIC_API_URL in development
+  - Every page route has a sibling loading.tsx and error.tsx
+```
+
+---
+
+## EXTENDED VERIFICATION CHECKLIST (Prompts 21–32)
+
+Add these to the checklist from Prompt 20 before sign-off.
+
+### Shared component library (Prompt 21)
+
+- [ ] Button: loading prop disables click and shows spinner
+- [ ] All inputs: error prop renders red border + error text
+- [ ] DataTable: generic typed, renders skeleton when isLoading=true
+- [ ] Modal: focus trapped, closes on Escape
+- [ ] ConfirmDialog: onConfirm only fires after user clicks
+- [ ] Avatar: initials rendered from name when no image
+- [ ] TierBadge, RoleBadge, StatusBadge: correct colors for all variants
+
+### Form system (Prompt 22)
+
+- [ ] FormField: error linked via aria-describedby
+- [ ] useFormSubmit: API field errors mapped to correct form fields
+- [ ] All Zod schemas match NestJS DTOs exactly
+- [ ] DynamicFieldList: add/remove/reorder works correctly
+- [ ] No form has tenantId as a field
+
+### Mobile responsiveness (Prompt 23)
+
+- [ ] Bottom nav visible on mobile, hidden on desktop
+- [ ] Points page: stacked on mobile, side-by-side on desktop
+- [ ] Members: card list on mobile, table on desktop
+- [ ] All tap targets ≥ 44×44px
+- [ ] All form inputs: font-size ≥ 16px (no iOS zoom)
+
+### QR code workflow (Prompt 24)
+
+- [ ] QR code displayed from S3 signed URL
+- [ ] Download triggers browser file download
+- [ ] Regenerate button restricted by permission
+- [ ] Bulk QR export available in member table bulk actions
+
+### S3 media (Prompt 25)
+
+- [ ] Avatar upload: direct to S3 presigned URL (not through backend)
+- [ ] Upload progress bar shown during upload
+- [ ] S3Image: falls back to initials on error
+- [ ] All S3 media uses signed URLs (no raw S3 URLs exposed)
+
+### Notifications (Prompt 26)
+
+- [ ] toast.promise() used for all async operations
+- [ ] TierUpgradeModal: fires confetti, shows new tier benefits
+- [ ] TierUpgradeModal: accessible (role=dialog, focus trapped)
+- [ ] Points animation: "+{n} pts" badge fires on successful collect
+- [ ] useProvisioningStatus: polling stops when all steps done or errored
+
+### Dark mode (Prompt 27)
+
+- [ ] ThemeToggle in both portals' topbars
+- [ ] System preference respected by default
+- [ ] Dark mode theme stored in localStorage (only acceptable localStorage use)
+- [ ] All custom colors use CSS variables (none hardcoded)
+
+### Member profile page (Prompt 28)
+
+- [ ] /members/[id] renders full profile
+- [ ] 404 returned for non-existent ID
+- [ ] Breadcrumb shows Members → {name}
+- [ ] Back navigation preserves list state
+
+### Global search (Prompt 29)
+
+- [ ] Cmd+K / Ctrl+K opens search panel
+- [ ] Results appear after 300ms debounce
+- [ ] Keyboard navigation (↑↓ + Enter) works
+- [ ] "View all results" passes query to members page
+
+### Dev tooling (Prompt 30)
+
+- [ ] pnpm dev:tenant starts tenant portal locally
+- [ ] pnpm dev:central starts central portal locally
+- [ ] docker-compose.yml starts postgres and redis
+- [ ] DEVELOPMENT.md explains multi-tenant local setup
+
+### Deployment (Prompt 31)
+
+- [ ] output: 'standalone' set in both next.config.ts files
+- [ ] API rewrites configured in next.config.ts
+- [ ] S3 remote patterns whitelisted for next/image
+- [ ] pm2 ecosystem.config.js includes both Next.js processes
+- [ ] Nginx config proxies both portals correctly
+- [ ] Security headers set on all routes
+
+### Final integration (Prompt 32)
+
+- [ ] Zero direct fetch() calls — all use apiClient
+- [ ] Zero inline role checks in JSX — all use PermissionGate
+- [ ] Every (dashboard) route has loading.tsx and error.tsx
+- [ ] TypeScript compiles with zero errors
+- [ ] ESLint passes with zero errors
+- [ ] apiClient uses relative URL in production
+- [ ] All Zod schemas validated against NestJS DTOs
